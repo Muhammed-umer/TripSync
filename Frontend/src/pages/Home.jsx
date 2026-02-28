@@ -1,12 +1,8 @@
 // ./src/pages/Home.jsx
 import React, { useState, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, LayersControl } from "react-leaflet";
-<<<<<<< HEAD
 import { useLocation } from "./useLocation"; 
 
-=======
-import { useLocation } from "./useLocation";
->>>>>>> d375d67ca0470618dc84ac7b92f2654d12c6a294
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import SupportChat from "./SupportChat";
