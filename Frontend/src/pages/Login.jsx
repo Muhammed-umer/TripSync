@@ -5,7 +5,7 @@ import { auth, db } from "../firebase/firebase";
 import { useNavigate } from "react-router-dom";
 
 export default function Login() {
-  const [identifier, setIdentifier] = useState(""); // username OR email
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
 
@@ -15,7 +15,6 @@ export default function Login() {
     try {
       let emailToLogin = identifier;
 
-      // If user entered username (no @ symbol)
       if (!identifier.includes("@")) {
         const q = query(
           collection(db, "users"),
@@ -32,14 +31,11 @@ export default function Login() {
         emailToLogin = snapshot.docs[0].data().email;
       }
 
-      // Login using Firebase Auth
       await signInWithEmailAndPassword(auth, emailToLogin, password);
 
-      alert("Login successful");
-      navigate("/dashboard");
+      navigate("/home");
 
     } catch (error) {
-      console.error(error);
       alert("Invalid credentials");
     }
   };
