@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../firebase/firebase";
@@ -10,10 +9,6 @@ import {
   orderBy,
   serverTimestamp
 } from "firebase/firestore";
-=======
-// ./src/pages/SupportChat.jsx
-import { useState, useEffect } from "react";
->>>>>>> 49ab41821f7a372b1e7f4749686e72239087a0dc
 
 const SupportChat = () => {
   const { currentUser } = useAuth();
