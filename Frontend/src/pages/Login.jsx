@@ -52,7 +52,6 @@ export default function Login() {
       >
         <h2 className="text-xl font-bold text-center mb-6">Login</h2>
 
-        {/* Username OR Email */}
         <input
           type="text"
           placeholder="Username or Email"
@@ -62,7 +61,6 @@ export default function Login() {
           required
         />
 
-        {/* Password */}
         <input
           type="password"
           placeholder="Password"

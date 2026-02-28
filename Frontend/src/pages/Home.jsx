@@ -1,4 +1,4 @@
-// src/pages/Home.jsx
+// ./src/pages/Home.jsx
 import React, { useState, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, LayersControl } from "react-leaflet";
 <<<<<<< HEAD

@@ -1,4 +1,4 @@
-// src/components/SupportChat.jsx
+// ./src/pages/SupportChat.jsx
 import { useState, useEffect } from "react";
 
 const SupportChat = () => {
