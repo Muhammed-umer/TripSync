@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import SupportChat from "./SupportChat";
 
 // Fix for default marker icons in Leaflet + React
 import markerIcon from "leaflet/dist/images/marker-icon.png";
@@ -130,40 +131,43 @@ const Home = () => {
   }
 
   // --- DASHBOARD RENDER ---
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-600 to-purple-700 px-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm text-center">
-        <h1 className="text-2xl sm:text-3xl font-bold mb-2 text-gray-800">
-          Welcome to TripSync
-        </h1>
-        <p className="text-gray-500 mb-8 text-sm sm:text-base">
-          Stay connected with your trip mates
-        </p>
+ return (
+  <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-600 to-purple-700 px-4">
+    <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm text-center">
+      <h1 className="text-2xl sm:text-3xl font-bold mb-2 text-gray-800">
+        Welcome to TripSync
+      </h1>
 
-        <div className="flex flex-col gap-4">
-          <button className="bg-indigo-600 hover:bg-indigo-700 active:scale-95 transition-all duration-300 text-white py-3 rounded-lg font-medium shadow-md">
-            💬 Group Chat
-          </button>
+      <p className="text-gray-500 mb-8 text-sm sm:text-base">
+        Stay connected with your trip mates
+      </p>
 
-          <button
-            onClick={() => setShowMap(true)}
-            className="bg-purple-600 hover:bg-purple-700 active:scale-95 transition-all duration-300 text-white py-3 rounded-lg font-medium shadow-md"
-          >
-            Navigation
-          </button>
+      <div className="flex flex-col gap-4">
 
-          <button
-            onClick={handleEmergency}
-            className="bg-red-600 hover:bg-red-700 active:scale-95 transition-all duration-300 text-white py-3 rounded-lg font-bold shadow-lg animate-pulse"
-          >
-            🚨 Emergency Help
-          </button>
-        </div>
-        <p className="text-xs text-gray-400 mt-6">
-          Tap Emergency only in urgent situations.
-        </p>
+        <button
+          onClick={() => setShowMap(true)}
+          className="bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg font-medium shadow-md"
+        >
+          Navigation
+        </button>
+
+        <button
+          onClick={handleEmergency}
+          className="bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg font-bold shadow-lg"
+        >
+          🚨 Emergency Help
+        </button>
+
       </div>
+
+      <p className="text-xs text-gray-400 mt-6">
+        Tap Emergency only in urgent situations.
+      </p>
     </div>
+
+    {/* Floating Chat */}
+    <SupportChat />
+  </div>
   );
 };
 
