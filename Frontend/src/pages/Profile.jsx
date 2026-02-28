@@ -1,45 +1,67 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import vagamonNight from "../assets/vagamon-night.jpg";
+import { useAuth } from "../context/AuthContext";
 
 const Profile = () => {
   const navigate = useNavigate();
+  const { currentUser, logout } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate("/", { replace: true });
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
 
   return (
-    <div
-      className="relative min-h-screen bg-cover bg-center"
-      style={{ backgroundImage: `url(${vagamonNight})` }}
-    >
-      <div className="absolute inset-0 bg-gradient-to-br from-black/70 via-indigo-950/70 to-black/80"></div>
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
+      <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-8">
 
-      <div className="relative z-10 flex justify-center items-center h-screen">
-        <div className="bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-xl border border-white/20 rounded-[3rem] p-10 w-96 text-white shadow-2xl space-y-6">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold text-gray-800">
+            Profile
+          </h2>
 
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold">Profile</h2>
-            <button
-              onClick={() => navigate("/")}
-              className="text-sm text-indigo-300 hover:text-white"
-            >
-              Back
-            </button>
-          </div>
-
-          <div className="text-center space-y-3">
-            <div className="w-24 h-24 bg-indigo-600 rounded-full mx-auto flex items-center justify-center text-3xl font-bold">
-              T
-            </div>
-
-            <h3 className="text-lg font-bold">Tamilvani</h3>
-            <p className="text-indigo-300 text-sm">Member</p>
-          </div>
-
-          <div className="space-y-2 text-sm">
-            <p><strong>Email:</strong> tamil@example.com</p>
-            <p><strong>Status:</strong> Active</p>
-          </div>
-
+          <button
+            onClick={() => navigate("/home")}
+            className="text-sm text-indigo-600 hover:underline"
+          >
+            Back
+          </button>
         </div>
+
+        {/* Profile Info */}
+        <div className="flex flex-col items-center space-y-4 mb-6">
+
+          <img
+            src={
+              currentUser?.photoURL ||
+              "https://i.pravatar.cc/150?img=12"
+            }
+            alt="Profile"
+            className="w-28 h-28 rounded-full object-cover border-4 border-indigo-500 shadow-lg"
+          />
+
+          <h3 className="text-lg font-semibold text-gray-800">
+            {currentUser?.displayName || "User"}
+          </h3>
+
+          <p className="text-gray-500 text-sm">
+            {currentUser?.email}
+          </p>
+        </div>
+
+        {/* Logout Button */}
+        <button
+          onClick={handleLogout}
+          className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-semibold transition shadow-md"
+        >
+          Logout
+        </button>
+
       </div>
     </div>
   );

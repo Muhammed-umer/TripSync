@@ -71,91 +71,103 @@ const Home = () => {
       className="relative min-h-screen bg-cover bg-center"
       style={{ backgroundImage: `url(${vagamonNight})` }}
     >
-      {/* Dark Overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-black/70 via-indigo-950/70 to-black/80"></div>
+      {/* Night Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-br from-black/60 via-[#0B1D2A]/50 to-black/70"></div>
 
       <div className="relative z-10 max-w-7xl mx-auto px-6 py-16">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-start">
 
-          {/* LEFT MAIN GLASS CARD */}
-          <div className="bg-gradient-to-br from-white/5 to-white/10 backdrop-blur-xl border border-white/20 rounded-[3rem] p-10 shadow-[0_25px_60px_rgba(0,0,0,0.6)] space-y-10">
+          {/* ================= LEFT MAIN TOUR CARD ================= */}
+          <div className="bg-[#0F1C2E]/80 backdrop-blur-md border border-white/10 rounded-[3rem] overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.8)] w-full max-w-xl mx-auto">
 
-            {/* Header */}
-            <div className="flex justify-between items-center">
+            {/* HEADER */}
+            <div className="bg-gradient-to-r from-[#1B4332] to-[#0F3460] px-10 py-8 flex justify-between items-center">
               <div>
-                <h1 className="text-3xl font-black text-white">
+                <h1 className="text-2xl font-black text-cyan-200 drop-shadow-md">
                   TripSync
                 </h1>
-                <p className="text-indigo-300 text-xs font-bold uppercase tracking-widest">
+                <p className="text-cyan-100 text-xs font-bold uppercase tracking-widest">
                   College Expedition '26
                 </p>
               </div>
 
+              {/* PROFILE BUTTON */}
               <div
                 onClick={() => navigate("/profile")}
-                className="w-12 h-12 bg-white/20 rounded-2xl border border-white/30 flex items-center justify-center cursor-pointer hover:scale-110 transition text-white"
+                className="w-12 h-12 bg-gradient-to-br from-cyan-400 to-teal-300 rounded-xl shadow-lg flex items-center justify-center cursor-pointer hover:scale-110 transition text-black font-bold"
               >
                 👤
               </div>
             </div>
 
-            {/* Map Preview */}
-            <div
-              onClick={() => setShowMap(true)}
-              className="rounded-[2rem] overflow-hidden cursor-pointer shadow-xl"
-            >
-              <div className="h-48">
-                <MapContainer
-                  center={currentPos}
-                  zoom={14}
-                  zoomControl={false}
-                  dragging={false}
-                  touchZoom={false}
-                  scrollWheelZoom={false}
-                  style={{ height: "100%", width: "100%" }}
-                >
-                  <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                  <Marker position={currentPos} />
-                </MapContainer>
-              </div>
-            </div>
+            {/* CONTENT */}
+            <div className="p-12 space-y-12">
 
-            {/* Emergency */}
-            <div className="flex justify-center">
+              {/* MAP */}
+              <div
+                onClick={() => setShowMap(true)}
+                className="w-full rounded-[2rem] overflow-hidden cursor-pointer shadow-xl border border-white/10"
+              >
+                <div className="h-52">
+                  <MapContainer
+                    center={currentPos}
+                    zoom={14}
+                    zoomControl={false}
+                    dragging={false}
+                    touchZoom={false}
+                    scrollWheelZoom={false}
+                    style={{ height: "100%", width: "100%" }}
+                  >
+                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    <Marker position={currentPos} />
+                  </MapContainer>
+                </div>
+              </div>
+
+              {/* EMERGENCY BUTTON */}
               <button
                 onClick={handleEmergency}
-                className="w-44 h-44 bg-red-500 rounded-[2.5rem] shadow-2xl flex flex-col items-center justify-center gap-4 text-white hover:scale-105 transition"
+                className="w-full h-40 bg-gradient-to-r from-red-600 to-red-500 rounded-[2rem] shadow-2xl flex flex-col items-center justify-center gap-4 text-white hover:scale-[1.02] transition"
               >
-                <div className="w-16 h-16 bg-red-600 rounded-2xl flex items-center justify-center text-3xl animate-pulse">
+                <div className="w-14 h-14 bg-red-700 rounded-2xl flex items-center justify-center text-3xl animate-pulse">
                   🚨
                 </div>
-                <span className="font-bold">Emergency Help</span>
+                <span className="font-bold text-lg">
+                  Emergency Help
+                </span>
               </button>
-            </div>
 
-            {/* Expedition */}
-            <div className="bg-indigo-900/70 rounded-[2rem] p-6 text-white">
-              <h3 className="font-black text-lg mb-1">
-                Current Expedition
-              </h3>
-              <p className="text-indigo-300 text-xs font-bold uppercase mb-4">
-                Destination: Vagamon Hills
-              </p>
+              {/* CURRENT EXPEDITION */}
+              <div className="w-full bg-gradient-to-r from-[#1E3A5F] to-[#0F3460] rounded-[2rem] p-8 text-white shadow-xl border border-white/10">
 
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs font-bold">
-                  <span>Distance Progress</span>
-                  <span>75%</span>
+                <div className="mb-4">
+                  <h3 className="font-black text-lg text-cyan-200">
+                    Current Expedition
+                  </h3>
+                  <p className="text-cyan-100 text-xs font-bold uppercase mt-1">
+                    Destination: Vagamon Hills
+                  </p>
                 </div>
 
-                <div className="w-full h-2 bg-white/10 rounded-full">
-                  <div className="h-full bg-green-400 rounded-full w-3/4 shadow-lg"></div>
+                <div className="w-full h-[1px] bg-cyan-300/30 mb-6 rounded-full"></div>
+
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm font-semibold text-cyan-100">
+                    <span>Distance Progress</span>
+                    <span>75%</span>
+                  </div>
+
+                  <div className="w-full h-3 bg-white/10 rounded-full">
+                    <div className="h-full bg-emerald-400 rounded-full w-3/4 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+                  </div>
                 </div>
+
               </div>
+
             </div>
           </div>
 
-          {/* RIGHT CHAT */}
+          {/* ================= RIGHT CHAT ================= */}
           <div className="flex justify-end">
             <SupportChat />
           </div>
