@@ -7,7 +7,7 @@ const SupportChat = () => {
 
   useEffect(() => {
     const checkScreen = () => {
-      setIsDesktop(window.innerWidth >= 1024); // lg breakpoint
+      setIsDesktop(window.innerWidth >= 1024);
     };
 
     checkScreen();
@@ -16,7 +16,6 @@ const SupportChat = () => {
     return () => window.removeEventListener("resize", checkScreen);
   }, []);
 
-  // Always open on desktop
   useEffect(() => {
     if (isDesktop) {
       setOpen(true);
@@ -27,11 +26,11 @@ const SupportChat = () => {
 
   return (
     <>
-      {/* Floating Icon (Only on Mobile) */}
-      {!isDesktop && (
+      {/* Mobile Floating Button */}
+      {!isDesktop && !open && (
         <div className="fixed bottom-6 right-6 z-50">
           <button
-            onClick={() => setOpen(!open)}
+            onClick={() => setOpen(true)}
             className="bg-indigo-600 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-xl"
           >
             💬
@@ -44,22 +43,31 @@ const SupportChat = () => {
         <div
           className={`
             fixed z-50 bg-white shadow-2xl flex flex-col
-            ${isDesktop 
-              ? "bottom-6 right-6 w-96 h-[500px] rounded-xl" 
-              : "bottom-24 right-6 w-80 rounded-xl"}
+            ${
+              isDesktop
+                ? "bottom-6 right-6 w-96 h-[500px] rounded-xl"
+                : "top-16 right-3 left-3 h-[70vh] rounded-2xl"
+            }
           `}
         >
           {/* Header */}
-          <div className="bg-indigo-600 text-white p-3 rounded-t-xl flex justify-between">
-            <span className="font-medium">TripSync Support</span>
+          <div className="bg-indigo-600 text-white p-4 rounded-t-2xl flex justify-between items-center">
+            <span className="font-medium text-sm sm:text-base">
+              TripSync Support
+            </span>
 
             {!isDesktop && (
-              <button onClick={() => setOpen(false)}>✖</button>
+              <button
+                onClick={() => setOpen(false)}
+                className="text-lg"
+              >
+                ✖
+              </button>
             )}
           </div>
 
-          {/* Body */}
-          <div className="flex-1 p-3 overflow-y-auto text-sm text-gray-600">
+          {/* Chat Body */}
+          <div className="flex-1 p-4 overflow-y-auto text-sm text-gray-600">
             <p>Hello 👋 How can we help you?</p>
           </div>
 
@@ -68,9 +76,9 @@ const SupportChat = () => {
             <input
               type="text"
               placeholder="Type a message..."
-              className="flex-1 border rounded px-2 py-1 text-sm"
+              className="flex-1 border rounded px-3 py-2 text-sm"
             />
-            <button className="bg-indigo-600 text-white px-3 rounded text-sm">
+            <button className="bg-indigo-600 text-white px-4 py-2 rounded text-sm">
               Send
             </button>
           </div>
