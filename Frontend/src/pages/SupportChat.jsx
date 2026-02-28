@@ -3,18 +3,18 @@ import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../firebase/firebase";
 import EmojiPicker from "emoji-picker-react";
-import { getDocs } from "firebase/firestore";
+
 import {
-  doc,
-  getDoc,
   collection,
   addDoc,
   onSnapshot,
   query,
   orderBy,
   serverTimestamp,
+  getDocs,
 } from "firebase/firestore";
 import TripSyncLogo from "../assets/TripSync_Logo.png";
+import { Reply, X } from "lucide-react";
 
 const SupportChat = () => {
   const { currentUser } = useAuth();
@@ -24,9 +24,18 @@ const SupportChat = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
-  const [username, setUsername] = useState("");
-const [usersMap, setUsersMap] = useState({});
+  const [usersMap, setUsersMap] = useState({});
+  const [replyTo, setReplyTo] = useState(null);
+  const messagesRef = useRef(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
   const bottomRef = useRef(null);
+  const [hasLoadedInitially, setHasLoadedInitially] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(true);
+
+  // Swipe refs (mobile only)
+  const touchStartX = useRef(0);
+  const touchEndX = useRef(0);
 
   // ✅ Responsive check
   useEffect(() => {
@@ -35,39 +44,25 @@ const [usersMap, setUsersMap] = useState({});
       setIsDesktop(desktop);
       setOpen(desktop);
     };
+
     checkScreen();
     window.addEventListener("resize", checkScreen);
     return () => window.removeEventListener("resize", checkScreen);
   }, []);
-useEffect(() => {
-  const fetchUsers = async () => {
-    const snapshot = await getDocs(collection(db, "users"));
-    const map = {};
-    snapshot.forEach((doc) => {
-      map[doc.id] = doc.data().username;
-    });
-    setUsersMap(map);
-  };
 
-  fetchUsers();
-}, []);
-  // ✅ Fetch Username from users collection
+  // ✅ Fetch users once
   useEffect(() => {
-    const fetchUsername = async () => {
-      if (!currentUser) return;
-
-      try {
-        const userDoc = await getDoc(doc(db, "users", currentUser.uid));
-        if (userDoc.exists()) {
-          setUsername(userDoc.data().username);
-        }
-      } catch (err) {
-        console.error("Error fetching username:", err);
-      }
+    const fetchUsers = async () => {
+      const snapshot = await getDocs(collection(db, "users"));
+      const map = {};
+      snapshot.forEach((doc) => {
+        map[doc.id] = doc.data().username;
+      });
+      setUsersMap(map);
     };
 
-    fetchUsername();
-  }, [currentUser]);
+    fetchUsers();
+  }, []);
 
   // ✅ Real-time message listener
   useEffect(() => {
@@ -82,33 +77,56 @@ useEffect(() => {
         ...doc.data(),
         time: doc.data().timestamp?.toDate() || new Date(),
       }));
+
       setMessages(fetched);
+      setLoadingMessages(false);
+
+      const container = messagesRef.current;
+      if (!container) return;
+
+      requestAnimationFrame(() => {
+        // First load → instant bottom
+        if (!hasLoadedInitially) {
+          container.scrollTop = container.scrollHeight;
+          setHasLoadedInitially(true);
+          return;
+        }
+
+        // Follow only if already at bottom
+        if (isAtBottom) {
+          container.scrollTop = container.scrollHeight;
+        }
+      });
     });
 
     return () => unsubscribe();
-  }, []);
-
-  // ✅ Auto scroll
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  // ✅ Send Message (NO EMAIL STORED)
+  }, [isAtBottom, hasLoadedInitially]);
+  // ✅ Send message
   const handleSend = async () => {
     if (!input.trim() || !currentUser) return;
 
+    const messageText = input.trim();
+    setInput("");
+
     try {
       await addDoc(collection(db, "support_messages"), {
-        text: input.trim(),
+        text: messageText,
         senderId: currentUser.uid,
         timestamp: serverTimestamp(),
+        replyTo: replyTo
+          ? {
+              text: replyTo.text,
+              senderId: replyTo.senderId,
+            }
+          : null,
       });
 
-      setInput("");
+      setReplyTo(null);
     } catch (error) {
       console.error("Error sending message:", error);
     }
   };
+
   const formatTime = (date) =>
     date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
@@ -116,9 +134,45 @@ useEffect(() => {
     setInput((prev) => prev + emojiData.emoji);
   };
 
+  // ✅ Scroll detection
+  useEffect(() => {
+    const container = messagesRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const threshold = 50;
+      const atBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight <
+        threshold;
+
+      setIsAtBottom(atBottom);
+
+      if (atBottom) {
+        setUnreadCount(0);
+      }
+    };
+
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // ✅ Swipe Handlers (Mobile Only)
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.changedTouches[0].screenX;
+  };
+
+  const handleTouchEnd = (e, msg) => {
+    touchEndX.current = e.changedTouches[0].screenX;
+    const distance = touchEndX.current - touchStartX.current;
+
+    // Swipe right threshold
+    if (distance > 70) {
+      setReplyTo(msg);
+    }
+  };
+
   return (
     <>
-      {/* Mobile Floating Button */}
       {!isDesktop && !open && (
         <div className="fixed bottom-6 right-6 z-50">
           <button
@@ -130,7 +184,6 @@ useEffect(() => {
         </div>
       )}
 
-      {/* Chat Container */}
       {open && (
         <div
           className={`fixed z-50 flex flex-col transition-all duration-500 ease-out transform
@@ -141,7 +194,6 @@ useEffect(() => {
             }
             overflow-hidden`}
         >
-          {/* 🎨 Abstract Animated Background */}
           <div className="absolute inset-0 z-0 overflow-hidden">
             <img
               alt="Animated motion background"
@@ -150,7 +202,6 @@ useEffect(() => {
             <div className="absolute inset-0 bg-black/25"></div>
           </div>
 
-          {/* Chat UI (above background) */}
           <div className="relative z-10 flex flex-col h-full bg-transparent">
             {/* Header */}
             <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-800 p-6 text-white flex justify-between items-center">
@@ -185,34 +236,75 @@ useEffect(() => {
               )}
             </div>
 
-            {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
-              {messages.length === 0 && (
+            {/* Messages */}
+            <div
+              ref={messagesRef}
+              className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 space-y-4"
+            >
+              {!loadingMessages && messages.length === 0 && (
                 <div className="text-center py-10 opacity-50 text-sm italic">
                   No messages yet.
                 </div>
               )}
+
               {messages.map((msg) => {
                 const isMe = msg.senderId === currentUser?.uid;
+
                 return (
                   <div
                     key={msg.id}
-                    className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
+                    className={`flex flex-col ${
+                      isMe ? "items-end" : "items-start"
+                    }`}
+                    onTouchStart={!isDesktop ? handleTouchStart : undefined}
+                    onTouchEnd={
+                      !isDesktop ? (e) => handleTouchEnd(e, msg) : undefined
+                    }
                   >
-                    {!isMe && (
-                      <span className="text-[10px] font-bold text-indigo-600 mb-1 ml-2 uppercase">
-                        {usersMap[msg.senderId] || "User"}
-                      </span>
-                    )}
                     <div
-                      className={`px-5 py-3.5 rounded-2xl text-sm shadow-sm
-                        ${
-                          isMe
-                            ? "bg-gradient-to-br from-indigo-600 to-indigo-700 text-white"
-                            : "bg-white text-gray-800 border border-gray-100"
-                        }`}
+                      className={`relative group px-4 py-3 rounded-xl text-sm shadow-sm break-words whitespace-pre-wrap max-w-[75%]
+                      ${
+                        isMe
+                          ? "bg-gradient-to-br from-indigo-600 to-indigo-700 text-white"
+                          : "bg-white text-gray-800 border border-gray-100"
+                      }`}
                     >
+                      {!isMe && (
+                        <div className="text-[11px] font-semibold text-indigo-500 mb-0.5">
+                          {usersMap[msg.senderId] || "User"}
+                        </div>
+                      )}
+                      {/* Desktop Reply Button */}
+                      {isDesktop && (
+                        <button
+                          onClick={() => setReplyTo(msg)}
+                          className={`absolute top-2 ${
+                            isMe ? "-left-8" : "-right-8"
+                          } p-1 rounded-full hover:bg-black/10 transition`}
+                        >
+                          <Reply size={16} />
+                        </button>
+                      )}
+
+                      {msg.replyTo && (
+                        <div
+                          className={`mb-2 p-2 rounded-lg border-l-4 ${
+                            isMe
+                              ? "bg-green-100 border-green-500"
+                              : "bg-gray-100 border-indigo-500"
+                          }`}
+                        >
+                          <div className="text-xs font-semibold">
+                            {usersMap[msg.replyTo.senderId] || "User"}
+                          </div>
+                          <div className="text-xs truncate opacity-80">
+                            {msg.replyTo.text}
+                          </div>
+                        </div>
+                      )}
+
                       <p>{msg.text}</p>
+
                       <span className="text-[10px] mt-2 block opacity-60">
                         {formatTime(msg.time)}
                       </span>
@@ -220,16 +312,31 @@ useEffect(() => {
                   </div>
                 );
               })}
-              <div ref={bottomRef} className="h-2"></div>
+
+              <div ref={bottomRef} ></div>
             </div>
 
-            {/* Bus-themed Input Area */}
+            {/* ✅ Unread Button OUTSIDE scroll */}
+            {!isAtBottom && unreadCount > 0 && (
+              <div className="absolute bottom-28 right-6 z-50">
+                <button
+                  onClick={() => {
+                    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+                    setUnreadCount(0);
+                  }}
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-full shadow-lg text-xs"
+                >
+                  {unreadCount} New Message{unreadCount > 1 ? "s" : ""}
+                </button>
+              </div>
+            )}
+
+            {/* Input Area */}
             <div className="relative p-5">
               {currentUser ? (
                 <div className="relative">
-                  {/* Emoji Picker (Above Bus) */}
                   {showEmoji && (
-                    <div className="absolute bottom-24 left-4 z-50 bg-white rounded-2xl shadow-xl p-2">
+                    <div className="absolute bottom-24  left-4 z-50 bg-white rounded-2xl shadow-xl p-2">
                       <EmojiPicker
                         onEmojiClick={handleEmojiClick}
                         height={350}
@@ -237,13 +344,31 @@ useEffect(() => {
                     </div>
                   )}
 
-                  {/* 🚌 Bus Body */}
+                  {replyTo && (
+                    <div className="relative bg-white p-3 rounded-lg mb-1 border-l-4 border-indigo-600 shadow">
+                      {/* Close Icon */}
+                      <button
+                        onClick={() => setReplyTo(null)}
+                        className="absolute top-2 right-2 p-1 rounded-full hover:bg-gray-200 transition"
+                      >
+                        <X size={14} className="text-gray-600" />
+                      </button>
+
+                      <div className="text-xs font-semibold">
+                        {usersMap[replyTo.senderId] || "User"}
+                      </div>
+
+                      <div className="text-xs truncate opacity-80 pr-6">
+                        {replyTo.text}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Bus Body */}
                   <div className="relative w-full bg-yellow-400 rounded-2xl h-16 flex items-center px-4 shadow-lg">
-                    {/* Wheels */}
                     <div className="absolute -bottom-3 left-6 w-6 h-6 bg-black rounded-full"></div>
                     <div className="absolute -bottom-3 right-6 w-6 h-6 bg-black rounded-full"></div>
 
-                    {/* Windows */}
                     <div className="absolute top-2 left-16 flex space-x-4">
                       <div className="w-10 h-5 bg-white/30 rounded-md border border-white/40"></div>
                       <div className="w-10 h-5 bg-white/30 rounded-md border border-white/40"></div>
@@ -251,7 +376,6 @@ useEffect(() => {
                       <div className="w-10 h-5 bg-white/30 rounded-md border border-white/40"></div>
                     </div>
 
-                    {/* Emoji Button */}
                     <button
                       onClick={() => setShowEmoji(!showEmoji)}
                       className="absolute left-2 text-2xl hover:scale-110 transition"
@@ -259,7 +383,6 @@ useEffect(() => {
                       😀
                     </button>
 
-                    {/* Input */}
                     <input
                       type="text"
                       value={input}
@@ -269,7 +392,6 @@ useEffect(() => {
                       className="flex-1 rounded-full px-4 py-2 ml-12 focus:outline-none text-sm"
                     />
 
-                    {/* Send Button */}
                     <button
                       onClick={handleSend}
                       disabled={!input.trim()}
