@@ -1,89 +1,84 @@
-// ./src/pages/Login.jsx
 import { useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth, db } from "../firebase/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
+import { auth, db } from "../firebase/firebase";
 import { useNavigate } from "react-router-dom";
 
-const Login = () => {
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
+export default function Login() {
+  const [identifier, setIdentifier] = useState(""); // username OR email
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
 
-  const handleLogin = async () => {
+  const handleLogin = async (e) => {
+    e.preventDefault();
+
     try {
-      // 1️⃣ Find user by username
-      const q = query(
-        collection(db, "users"),
-        where("username", "==", username)
-      );
+      let emailToLogin = identifier;
 
-      const querySnapshot = await getDocs(q);
+      // If user entered username (no @ symbol)
+      if (!identifier.includes("@")) {
+        const q = query(
+          collection(db, "users"),
+          where("username", "==", identifier)
+        );
 
-      if (querySnapshot.empty) {
-        alert("Username not found");
-        return;
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+          alert("Username not found");
+          return;
+        }
+
+        emailToLogin = snapshot.docs[0].data().email;
       }
 
-      const userData = querySnapshot.docs[0].data();
+      // Login using Firebase Auth
+      await signInWithEmailAndPassword(auth, emailToLogin, password);
 
-      // 2️⃣ Check if email matches
-      if (userData.email !== email) {
-        alert("Email does not match username");
-        return;
-      }
-
-      // 3️⃣ Login using Firebase Auth
-      await signInWithEmailAndPassword(auth, email, password);
-
-      // 4️⃣ Check password change condition
-      if (userData.mustChangePassword) {
-        navigate("/change-password");
-      } else {
-        navigate("/dashboard");
-      }
+      alert("Login successful");
+      navigate("/dashboard");
 
     } catch (error) {
+      console.error(error);
       alert("Invalid credentials");
     }
   };
 
   return (
-    <div className="flex items-center justify-center h-screen bg-gray-100">
-      <div className="bg-white p-8 rounded shadow w-96">
-        <h2 className="text-xl font-bold mb-4 text-center">Login</h2>
+    <div className="flex items-center justify-center min-h-screen bg-gray-200">
+      <form
+        onSubmit={handleLogin}
+        className="bg-white p-8 rounded shadow-md w-96"
+      >
+        <h2 className="text-xl font-bold text-center mb-6">Login</h2>
 
+        {/* Username OR Email */}
         <input
           type="text"
-          placeholder="Username"
-          className="w-full border p-2 mb-3 rounded"
-          onChange={(e) => setUsername(e.target.value)}
+          placeholder="Username or Email"
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
+          className="w-full p-2 border mb-4 rounded"
+          required
         />
 
-        <input
-          type="email"
-          placeholder="Email"
-          className="w-full border p-2 mb-3 rounded"
-          onChange={(e) => setEmail(e.target.value)}
-        />
-
+        {/* Password */}
         <input
           type="password"
           placeholder="Password"
-          className="w-full border p-2 mb-3 rounded"
+          value={password}
           onChange={(e) => setPassword(e.target.value)}
+          className="w-full p-2 border mb-4 rounded"
+          required
         />
 
         <button
-          onClick={handleLogin}
-          className="w-full bg-blue-600 text-white p-2 rounded"
+          type="submit"
+          className="w-full bg-blue-600 text-white py-2 rounded"
         >
           Login
         </button>
-      </div>
+      </form>
     </div>
   );
-};
-
-export default Login;
+}
