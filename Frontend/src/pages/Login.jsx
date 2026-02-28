@@ -1,4 +1,6 @@
 // ./src/pages/Login.jsx
+
+import keralaBg from "../assets/kerala.jpg";
 import { useState } from "react";
 import {
   signInWithEmailAndPassword,
@@ -11,7 +13,14 @@ import { useNavigate } from "react-router-dom";
 export default function Login() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [toast, setToast] = useState(null); // { message, type }
+
   const navigate = useNavigate();
+
+  const showToast = (message, type = "error") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -19,17 +28,15 @@ export default function Login() {
     try {
       let emailToLogin = identifier;
 
-      // If user typed username
       if (!identifier.includes("@")) {
         const q = query(
           collection(db, "users"),
           where("username", "==", identifier)
         );
-
         const snapshot = await getDocs(q);
 
         if (snapshot.empty) {
-          alert("Username not found");
+          showToast("Username not found", "error");
           return;
         }
 
@@ -38,34 +45,35 @@ export default function Login() {
 
       await signInWithEmailAndPassword(auth, emailToLogin, password);
 
-      navigate("/home");
+      showToast("Login successful!", "success");
 
-    } catch (error) {
-      console.error(error);
-      alert("Invalid credentials");
+      setTimeout(() => {
+        navigate("/home");
+      }, 1000);
+
+    } catch {
+      showToast("Invalid credentials", "error");
     }
   };
 
   const handleForgotPassword = async () => {
     if (!identifier) {
-      alert("Enter your email first");
+      showToast("Enter email or username first", "error");
       return;
     }
 
     try {
       let emailToReset = identifier;
 
-      // If username entered, convert to email
       if (!identifier.includes("@")) {
         const q = query(
           collection(db, "users"),
           where("username", "==", identifier)
         );
-
         const snapshot = await getDocs(q);
 
         if (snapshot.empty) {
-          alert("Username not found");
+          showToast("Username not found", "error");
           return;
         }
 
@@ -73,46 +81,97 @@ export default function Login() {
       }
 
       await sendPasswordResetEmail(auth, emailToReset);
-      alert("Password reset email sent");
+      showToast("Password reset email sent", "success");
 
-    } catch (error) {
-      console.error(error);
-      alert("Failed to send reset email");
+    } catch {
+      showToast("Failed to send reset email", "error");
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-200">
+    <div
+      className="relative min-h-screen flex items-center justify-center bg-cover bg-center"
+      style={{ backgroundImage: `url(${keralaBg})` }}
+    >
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-br from-black/70 via-emerald-950/60 to-black/80"></div>
+
+      {/* Toast (Top Right) */}
+      {toast && (
+        <div
+          className={`fixed top-6 right-6 z-50 px-6 py-3 rounded-xl shadow-2xl backdrop-blur-lg border transition-all duration-300
+          ${
+            toast.type === "error"
+              ? "bg-red-600/20 border-red-500/40 text-red-300"
+              : "bg-emerald-600/20 border-emerald-400/40 text-emerald-300"
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
+
+      {/* Login Card */}
       <form
         onSubmit={handleLogin}
-        className="bg-white p-8 rounded shadow-md w-96"
+        className="relative z-10 w-full max-w-md p-10 rounded-3xl
+        backdrop-blur-xl
+        bg-black/40
+        border border-emerald-800/40
+        shadow-2xl shadow-black/60
+        text-white"
       >
-        <h2 className="text-xl font-bold text-center mb-6">Login</h2>
+        {/* Updated Title Color */}
+        <h2 className="text-4xl font-extrabold text-center mb-2 tracking-wide text-emerald-300 drop-shadow-lg">
+          TripSync Kerala
+        </h2>
 
-        <input
-          type="text"
-          placeholder="Username or Email"
-          value={identifier}
-          onChange={(e) => setIdentifier(e.target.value)}
-          className="w-full p-2 border mb-4 rounded"
-          required
-        />
+        <p className="text-center text-sm text-emerald-200/80 mb-8 tracking-wide">
+          Discover God’s Own Country 🚣‍♂️🌅
+        </p>
 
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full p-2 border rounded"
-          required
-        />
+        <div className="space-y-6">
+          <input
+            type="text"
+            placeholder="Username or Email"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl
+            bg-emerald-900/40
+            border border-emerald-700/40
+            text-white
+            placeholder-emerald-200/70
+            focus:outline-none
+            focus:ring-2
+            focus:ring-emerald-400
+            focus:bg-emerald-800/50
+            transition duration-300"
+            required
+          />
 
-        {/* Forgot Password placed BETWEEN password and login */}
-        <div className="text-right mt-2 mb-4">
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full px-4 py-3 rounded-xl
+            bg-emerald-900/40
+            border border-emerald-700/40
+            text-white
+            placeholder-emerald-200/70
+            focus:outline-none
+            focus:ring-2
+            focus:ring-emerald-400
+            focus:bg-emerald-800/50
+            transition duration-300"
+            required
+          />
+        </div>
+
+        <div className="text-right mt-4 mb-6">
           <button
             type="button"
             onClick={handleForgotPassword}
-            className="text-blue-600 text-sm hover:underline"
+            className="text-sm text-emerald-300 hover:text-emerald-200 transition"
           >
             Forgot Password?
           </button>
@@ -120,7 +179,13 @@ export default function Login() {
 
         <button
           type="submit"
-          className="w-full bg-blue-600 text-white py-2 rounded"
+          className="w-full py-3 rounded-xl
+          bg-gradient-to-r from-emerald-600 to-teal-700
+          hover:from-emerald-500 hover:to-teal-600
+          transition duration-300
+          font-semibold tracking-wide
+          shadow-lg shadow-emerald-900/40
+          active:scale-95"
         >
           Login
         </button>
