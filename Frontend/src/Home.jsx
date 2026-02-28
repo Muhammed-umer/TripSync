@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import React, { useState, useEffect } from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMap, LayersControl } from "react-leaflet";
+import { useLocation } from "./useLocation"; 
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
@@ -11,156 +12,89 @@ let DefaultIcon = L.icon({
   iconUrl: markerIcon,
   shadowUrl: markerShadow,
   iconSize: [25, 41],
-  iconAnchor: [12.5, 41], // The horizontal center (12.5) and the very bottom (41)
-  popupAnchor: [0, -41],  // Ensures the popup opens above the pin
+  iconAnchor: [12.5, 41],
+  popupAnchor: [0, -41],
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// Helper component to auto-center map when student moves
 function RecenterMap({ position }) {
   const map = useMap();
   useEffect(() => {
-    if (position) {
-      map.setView(position);
-    }
+    if (position) map.setView(position);
   }, [position, map]);
   return null;
 }
 
 const Home = () => {
   const [showMap, setShowMap] = useState(false);
-  const [position, setPosition] = useState([12.9716, 77.5946]); // Default: Bangalore
-  const lastUpdateRef = useRef({ lat: 0, lng: 0 });
+  const liveLocation = useLocation(20); 
 
-  // Distance calculator to handle Throttling (Haversine formula)
-  const getDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371e3; // Radius of Earth in meters
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
-
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      console.error("Geolocation is not supported by this browser.");
-      return;
-    }
-
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        const { latitude, longitude } = pos.coords;
-        const dist = getDistance(
-          lastUpdateRef.current.lat,
-          lastUpdateRef.current.lng,
-          latitude,
-          longitude
-        );
-
-        // THROTTLE: Only update state if user moves > 20 meters
-        // This prevents battery drain and constant jitter on the map
-        if (dist > 20) {
-          console.log(`User moved ${dist.toFixed(2)}m. Updating location...`);
-          const newPos = [latitude, longitude];
-          setPosition(newPos);
-          lastUpdateRef.current = { lat: latitude, lng: longitude };
-          
-          // Note: In the next phase, you will trigger your Firebase update here.
-        }
-      },
-      (err) => console.error("Location Error:", err),
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-      }
-    );
-
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, []);
+  const currentPos = liveLocation ? [liveLocation.lat, liveLocation.lng] : [12.9716, 77.5946];
 
   const handleEmergency = () => {
-    alert("🚨 Emergency triggered! Your coordinates are: " + position.join(", "));
+    alert("🚨 Emergency triggered! Coordinates: " + currentPos.join(", "));
   };
 
-  // --- MAP VIEW RENDER ---
   if (showMap) {
     return (
       <div className="h-screen w-full flex flex-col">
         <div className="bg-indigo-600 p-4 text-white flex justify-between items-center shadow-md z-[1000]">
           <h1 className="font-bold">TripSync Live Map</h1>
-          <button
-            onClick={() => setShowMap(false)}
-            className="bg-white text-indigo-600 px-3 py-1 rounded-md text-sm font-medium active:scale-95 transition-transform"
-          >
-            Back to Home
+          <button onClick={() => setShowMap(false)} className="bg-white text-indigo-600 px-3 py-1 rounded-md text-sm font-medium">
+            Back
           </button>
         </div>
 
         <div className="flex-1 relative">
-          <MapContainer
-            center={position}
-            zoom={16}
-            style={{ height: "100%", width: "100%" }}
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
-            <Marker position={position}>
-              <Popup>
-                <div className="text-center">
-                  <p className="font-bold">You are here</p>
-                  <p className="text-xs text-gray-500">Updating every 20m</p>
-                </div>
-              </Popup>
-            </Marker>
-            <RecenterMap position={position} />
+          <MapContainer center={currentPos} zoom={16} style={{ height: "100%", width: "100%" }}>
+            
+            <LayersControl position="topright">
+              {/* Standard Street View */}
+              <LayersControl.BaseLayer checked name="Street View">
+                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              </LayersControl.BaseLayer>
+
+              {/* Satellite View (Esri World Imagery) */}
+              <LayersControl.BaseLayer name="Satellite View">
+                <TileLayer
+                  attribution='© <a href="https://www.esri.com/">Esri</a>'
+                  url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                />
+              </LayersControl.BaseLayer>
+            </LayersControl>
+
+            {liveLocation && (
+              <Marker position={currentPos}>
+                <Popup>
+                  <div className="text-center">
+                    <p className="font-bold">You are here</p>
+                    {/* Deep link for future navigation to others */}
+                    <button 
+                      onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${currentPos[0]},${currentPos[1]}&travelmode=walking`)}
+                      className="mt-2 bg-indigo-600 text-white px-2 py-1 rounded text-xs"
+                    >
+                      Open in Google Maps
+                    </button>
+                  </div>
+                </Popup>
+              </Marker>
+            )}
+            <RecenterMap position={currentPos} />
           </MapContainer>
         </div>
       </div>
     );
   }
 
-  // --- DASHBOARD RENDER ---
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-600 to-purple-700 px-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm text-center">
-        <h1 className="text-2xl sm:text-3xl font-bold mb-2 text-gray-800">
-          Welcome to TripSync
-        </h1>
-        <p className="text-gray-500 mb-8 text-sm sm:text-base">
-          Stay connected with your trip mates
-        </p>
-
-        <div className="flex flex-col gap-4">
-          <button className="bg-indigo-600 hover:bg-indigo-700 active:scale-95 transition-all duration-300 text-white py-3 rounded-lg font-medium shadow-md">
-            💬 Group Chat
-          </button>
-
-          <button
-            onClick={() => setShowMap(true)}
-            className="bg-purple-600 hover:bg-purple-700 active:scale-95 transition-all duration-300 text-white py-3 rounded-lg font-medium shadow-md"
-          >
-            Navigation
-          </button>
-
-          <button
-            onClick={handleEmergency}
-            className="bg-red-600 hover:bg-red-700 active:scale-95 transition-all duration-300 text-white py-3 rounded-lg font-bold shadow-lg animate-pulse"
-          >
-            🚨 Emergency Help
-          </button>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-600 to-purple-700 px-4 text-center">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm">
+        <h1 className="text-2xl font-bold mb-2">Welcome to TripSync</h1>
+        <div className="flex flex-col gap-4 mt-8">
+          <button className="bg-indigo-600 text-white py-3 rounded-lg font-medium">💬 Group Chat</button>
+          <button onClick={() => setShowMap(true)} className="bg-purple-600 text-white py-3 rounded-lg font-medium">Navigation</button>
+          <button onClick={handleEmergency} className="bg-red-600 text-white py-3 rounded-lg font-bold animate-pulse">🚨 Emergency Help</button>
         </div>
-        <p className="text-xs text-gray-400 mt-6">
-          Tap Emergency only in urgent situations.
-        </p>
       </div>
     </div>
   );
