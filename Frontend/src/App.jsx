@@ -1,8 +1,7 @@
-// src/App.jsx
+// ./src/App.jsx
 import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
-import ChangePassword from "./pages/ChangePassword";
 import { useAuth } from "./context/AuthContext";
 
 function App() {
@@ -10,23 +9,23 @@ function App() {
 
   return (
     <Routes>
+
       {/* Login */}
       <Route
         path="/"
-        element={!currentUser ? <Login /> : <Navigate to="/home" />}
+        element={
+          currentUser ? <Navigate to="/home" /> : <Login />
+        }
       />
 
       {/* Home */}
       <Route
         path="/home"
-        element={currentUser ? <Home /> : <Navigate to="/" />}
+        element={
+          currentUser ? <Home /> : <Navigate to="/" />
+        }
       />
 
-      {/* Change Password */}
-      <Route
-        path="/change-password"
-        element={currentUser ? <ChangePassword /> : <Navigate to="/" />}
-      />
     </Routes>
   );
 }
