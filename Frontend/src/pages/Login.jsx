@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import {
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail
+} from "firebase/auth";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import { auth, db } from "../firebase/firebase";
 import { useNavigate } from "react-router-dom";
@@ -15,6 +18,7 @@ export default function Login() {
     try {
       let emailToLogin = identifier;
 
+      // If user typed username
       if (!identifier.includes("@")) {
         const q = query(
           collection(db, "users"),
@@ -36,7 +40,43 @@ export default function Login() {
       navigate("/home");
 
     } catch (error) {
+      console.error(error);
       alert("Invalid credentials");
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!identifier) {
+      alert("Enter your email first");
+      return;
+    }
+
+    try {
+      let emailToReset = identifier;
+
+      // If username entered, convert to email
+      if (!identifier.includes("@")) {
+        const q = query(
+          collection(db, "users"),
+          where("username", "==", identifier)
+        );
+
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+          alert("Username not found");
+          return;
+        }
+
+        emailToReset = snapshot.docs[0].data().email;
+      }
+
+      await sendPasswordResetEmail(auth, emailToReset);
+      alert("Password reset email sent");
+
+    } catch (error) {
+      console.error(error);
+      alert("Failed to send reset email");
     }
   };
 
@@ -62,9 +102,20 @@ export default function Login() {
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full p-2 border mb-4 rounded"
+          className="w-full p-2 border rounded"
           required
         />
+
+        {/* Forgot Password placed BETWEEN password and login */}
+        <div className="text-right mt-2 mb-4">
+          <button
+            type="button"
+            onClick={handleForgotPassword}
+            className="text-blue-600 text-sm hover:underline"
+          >
+            Forgot Password?
+          </button>
+        </div>
 
         <button
           type="submit"
