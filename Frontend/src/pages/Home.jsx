@@ -1,13 +1,5 @@
 // ./src/pages/Home.jsx
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-=======
-import vagamonNight from "../assets/vagamon-night.jpg";
->>>>>>> Stashed changes
-=======
-import vagamonNight from "../assets/vagamon-night.jpg";
->>>>>>> Stashed changes
 import React, { useState, useEffect } from "react";
 import vagamonNight from "../assets/vagamon-night.jpg";
 import { MapContainer, TileLayer, Marker, Popup, useMap, LayersControl } from "react-leaflet";
@@ -52,8 +44,6 @@ const Home = () => {
     alert("🚨 Emergency triggered! Coordinates: " + currentPos.join(", "));
   };
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
   // ================= FULL SCREEN MAP =================
   if (showMap) {
     return (
@@ -71,22 +61,6 @@ const Home = () => {
           <span className="text-xs bg-green-400 text-black px-3 py-1 rounded-full font-bold animate-pulse">
             LIVE
           </span>
-=======
-=======
->>>>>>> Stashed changes
-  // ================= MAP VIEW =================
-  if (showMap) {
-    return (
-      <div className="h-screen w-full flex flex-col">
-        <div className="bg-indigo-900 p-4 text-white flex justify-between items-center shadow-md z-[1000]">
-          <h1 className="font-bold tracking-wide">TripSync Live Map</h1>
-          <button
-            onClick={() => setShowMap(false)}
-            className="bg-white text-indigo-900 px-3 py-1 rounded-md text-sm font-medium"
-          >
-            Back
-          </button>
->>>>>>> Stashed changes
         </div>
 
         <div className="flex-1 relative">
@@ -109,23 +83,7 @@ const Home = () => {
             {liveLocation && (
               <Marker position={currentPos}>
                 <Popup>
-<<<<<<< Updated upstream
                   <b>You are here</b>
-=======
-                  <div className="text-center">
-                    <p className="font-bold">You are here</p>
-                    <button
-                      onClick={() =>
-                        window.open(
-                          `https://www.google.com/maps/dir/?api=1&destination=${currentPos[0]},${currentPos[1]}&travelmode=walking`
-                        )
-                      }
-                      className="mt-2 bg-indigo-900 text-white px-2 py-1 rounded text-xs"
-                    >
-                      Open in Google Maps
-                    </button>
-                  </div>
->>>>>>> Stashed changes
                 </Popup>
               </Marker>
             )}
@@ -137,8 +95,6 @@ const Home = () => {
     );
   }
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
   // ================= DASHBOARD =================
   return (
     <div
@@ -235,138 +191,9 @@ const Home = () => {
         </div>
 
         <SupportChat />
-=======
-  // ================= HOME SCREEN =================
-  return (
-  <div
-    className="relative min-h-screen bg-cover bg-center"
-    style={{ backgroundImage: `url(${vagamonNight})` }}
-  >
-    {/* Slightly Softer Overlay */}
-    <div className="absolute inset-0 bg-gradient-to-br from-black/60 via-indigo-950/50 to-black/70"></div>
-
-    {/* Main Layout */}
-    <div className="relative z-10 min-h-screen flex items-center px-6">
-
-      <div className="w-full max-w-6xl mx-auto flex flex-col lg:flex-row items-center justify-center lg:justify-between gap-12">
-
-        {/* Navigation Card */}
-        <div className="flex-1 flex justify-center">
-          <div className="
-            bg-white/5 backdrop-blur-2xl
-            border border-white/20
-            rounded-3xl shadow-2xl
-            px-12 py-12 w-full max-w-xl
-            text-center text-white">
-
-            <h1 className="text-4xl font-bold mb-4 leading-tight">
-              Welcome to TripSync 🛣️
-            </h1>
-
-            <p className="text-white/80 mb-8 text-base">
-              Stay connected with your trip mates
-            </p>
-
-            <div className="flex flex-col gap-5">
-              <button
-                onClick={() => setShowMap(true)}
-                className="bg-gradient-to-r from-indigo-600 to-purple-700
-                hover:from-indigo-500 hover:to-purple-600
-                text-white py-3 rounded-xl font-medium shadow-lg transition duration-300"
-              >
-                Navigation
-              </button>
-
-              <button
-                onClick={handleEmergency}
-                className="bg-gradient-to-r from-red-600 to-red-700
-                hover:from-red-500 hover:to-red-600
-                text-white py-3 rounded-xl font-bold shadow-lg transition duration-300"
-              >
-                🚨 Emergency Help
-              </button>
-            </div>
-
-            <p className="text-sm text-white/60 mt-6">
-              Use Emergency only in urgent situations.
-            </p>
-          </div>
-        </div>
-
-        {/* Chat Section */}
-        <div className="w-full lg:w-[380px] flex justify-center lg:justify-end">
-          <SupportChat />
-        </div>
-
->>>>>>> Stashed changes
-=======
-  // ================= HOME SCREEN =================
-  return (
-  <div
-    className="relative min-h-screen bg-cover bg-center"
-    style={{ backgroundImage: `url(${vagamonNight})` }}
-  >
-    {/* Slightly Softer Overlay */}
-    <div className="absolute inset-0 bg-gradient-to-br from-black/60 via-indigo-950/50 to-black/70"></div>
-
-    {/* Main Layout */}
-    <div className="relative z-10 min-h-screen flex items-center px-6">
-
-      <div className="w-full max-w-6xl mx-auto flex flex-col lg:flex-row items-center justify-center lg:justify-between gap-12">
-
-        {/* Navigation Card */}
-        <div className="flex-1 flex justify-center">
-          <div className="
-            bg-white/5 backdrop-blur-2xl
-            border border-white/20
-            rounded-3xl shadow-2xl
-            px-12 py-12 w-full max-w-xl
-            text-center text-white">
-
-            <h1 className="text-4xl font-bold mb-4 leading-tight">
-              Welcome to TripSync 🛣️
-            </h1>
-
-            <p className="text-white/80 mb-8 text-base">
-              Stay connected with your trip mates
-            </p>
-
-            <div className="flex flex-col gap-5">
-              <button
-                onClick={() => setShowMap(true)}
-                className="bg-gradient-to-r from-indigo-600 to-purple-700
-                hover:from-indigo-500 hover:to-purple-600
-                text-white py-3 rounded-xl font-medium shadow-lg transition duration-300"
-              >
-                Navigation
-              </button>
-
-              <button
-                onClick={handleEmergency}
-                className="bg-gradient-to-r from-red-600 to-red-700
-                hover:from-red-500 hover:to-red-600
-                text-white py-3 rounded-xl font-bold shadow-lg transition duration-300"
-              >
-                🚨 Emergency Help
-              </button>
-            </div>
-
-            <p className="text-sm text-white/60 mt-6">
-              Use Emergency only in urgent situations.
-            </p>
-          </div>
-        </div>
-
-        {/* Chat Section */}
-        <div className="w-full lg:w-[380px] flex justify-center lg:justify-end">
-          <SupportChat />
-        </div>
-
->>>>>>> Stashed changes
       </div>
     </div>
-  </div>
-);
+  );
 };
 
 export default Home;
