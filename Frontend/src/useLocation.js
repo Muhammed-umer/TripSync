@@ -1,3 +1,4 @@
+// src/useLocation.js
 import { useState, useEffect, useRef } from "react";
 
 export const useLocation = (thresholdMeters = 20) => {

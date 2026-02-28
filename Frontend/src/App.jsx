@@ -1,3 +1,4 @@
+// src/App.jsx
 import Home from './Home'
 
 
