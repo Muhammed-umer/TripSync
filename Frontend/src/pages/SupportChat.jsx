@@ -3,8 +3,10 @@ import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../firebase/firebase";
 import EmojiPicker from "emoji-picker-react";
-import { doc, getDoc } from "firebase/firestore";
+import { getDocs } from "firebase/firestore";
 import {
+  doc,
+  getDoc,
   collection,
   addDoc,
   onSnapshot,
@@ -13,18 +15,20 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import TripSyncLogo from "../assets/TripSync_Logo.png";
+
 const SupportChat = () => {
   const { currentUser } = useAuth();
+
   const [open, setOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
   const [username, setUsername] = useState("");
-
+const [usersMap, setUsersMap] = useState({});
   const bottomRef = useRef(null);
 
-  // Responsive screen check
+  // ✅ Responsive check
   useEffect(() => {
     const checkScreen = () => {
       const desktop = window.innerWidth >= 1024;
@@ -35,13 +39,43 @@ const SupportChat = () => {
     window.addEventListener("resize", checkScreen);
     return () => window.removeEventListener("resize", checkScreen);
   }, []);
+useEffect(() => {
+  const fetchUsers = async () => {
+    const snapshot = await getDocs(collection(db, "users"));
+    const map = {};
+    snapshot.forEach((doc) => {
+      map[doc.id] = doc.data().username;
+    });
+    setUsersMap(map);
+  };
 
-  // Firestore real-time listener
+  fetchUsers();
+}, []);
+  // ✅ Fetch Username from users collection
+  useEffect(() => {
+    const fetchUsername = async () => {
+      if (!currentUser) return;
+
+      try {
+        const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+        if (userDoc.exists()) {
+          setUsername(userDoc.data().username);
+        }
+      } catch (err) {
+        console.error("Error fetching username:", err);
+      }
+    };
+
+    fetchUsername();
+  }, [currentUser]);
+
+  // ✅ Real-time message listener
   useEffect(() => {
     const q = query(
       collection(db, "support_messages"),
       orderBy("timestamp", "asc"),
     );
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetched = snapshot.docs.map((doc) => ({
         id: doc.id,
@@ -50,49 +84,38 @@ const SupportChat = () => {
       }));
       setMessages(fetched);
     });
+
     return () => unsubscribe();
   }, []);
 
-  // Auto scroll to latest message
+  // ✅ Auto scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // ✅ Send Message (NO EMAIL STORED)
   const handleSend = async () => {
     if (!input.trim() || !currentUser) return;
+
     try {
       await addDoc(collection(db, "support_messages"), {
         text: input.trim(),
         senderId: currentUser.uid,
-        senderName: username,
         timestamp: serverTimestamp(),
       });
+
       setInput("");
     } catch (error) {
       console.error("Error sending message:", error);
     }
   };
-
   const formatTime = (date) =>
     date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-  // Handle Emoji click
   const handleEmojiClick = (emojiData) => {
     setInput((prev) => prev + emojiData.emoji);
   };
-  useEffect(() => {
-    const fetchUsername = async () => {
-      if (!currentUser) return;
 
-      const userDoc = await getDoc(doc(db, "users", currentUser.uid));
-
-      if (userDoc.exists()) {
-        setUsername(userDoc.data().username);
-      }
-    };
-
-    fetchUsername();
-  }, [currentUser]);
   return (
     <>
       {/* Mobile Floating Button */}
@@ -178,7 +201,7 @@ const SupportChat = () => {
                   >
                     {!isMe && (
                       <span className="text-[10px] font-bold text-indigo-600 mb-1 ml-2 uppercase">
-                        {msg.senderName || "Friend"}
+                        {usersMap[msg.senderId] || "User"}
                       </span>
                     )}
                     <div
