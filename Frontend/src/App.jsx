@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 import { useAuth } from "./context/AuthContext";
+import Profile from "./pages/Profile";
 
 function App() {
   const { currentUser } = useAuth();
@@ -25,6 +26,8 @@ function App() {
           currentUser ? <Home /> : <Navigate to="/" />
         }
       />
+
+      <Route path="/profile" element={<Profile />} />
 
     </Routes>
   );
