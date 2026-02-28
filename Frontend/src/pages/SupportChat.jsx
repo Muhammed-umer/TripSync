@@ -3,15 +3,16 @@ import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../firebase/firebase";
 import EmojiPicker from "emoji-picker-react";
+import { doc, getDoc } from "firebase/firestore";
 import {
   collection,
   addDoc,
   onSnapshot,
   query,
   orderBy,
-  serverTimestamp
+  serverTimestamp,
 } from "firebase/firestore";
-
+import TripSyncLogo from "../assets/TripSync_Logo.png";
 const SupportChat = () => {
   const { currentUser } = useAuth();
   const [open, setOpen] = useState(false);
@@ -19,6 +20,7 @@ const SupportChat = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
+  const [username, setUsername] = useState("");
 
   const bottomRef = useRef(null);
 
@@ -38,7 +40,7 @@ const SupportChat = () => {
   useEffect(() => {
     const q = query(
       collection(db, "support_messages"),
-      orderBy("timestamp", "asc")
+      orderBy("timestamp", "asc"),
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetched = snapshot.docs.map((doc) => ({
@@ -62,7 +64,7 @@ const SupportChat = () => {
       await addDoc(collection(db, "support_messages"), {
         text: input.trim(),
         senderId: currentUser.uid,
-        senderName: currentUser.email,
+        senderName: username,
         timestamp: serverTimestamp(),
       });
       setInput("");
@@ -76,8 +78,21 @@ const SupportChat = () => {
 
   // Handle Emoji click
   const handleEmojiClick = (emojiData) => {
-  setInput((prev) => prev + emojiData.emoji);
-};
+    setInput((prev) => prev + emojiData.emoji);
+  };
+  useEffect(() => {
+  const fetchUsername = async () => {
+    if (!currentUser) return;
+
+    const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+
+    if (userDoc.exists()) {
+      setUsername(userDoc.data().username);
+    }
+  };
+
+  fetchUsername();
+}, [currentUser]);
   return (
     <>
       {/* Mobile Floating Button */}
@@ -96,16 +111,16 @@ const SupportChat = () => {
       {open && (
         <div
           className={`fixed z-50 flex flex-col transition-all duration-500 ease-out transform
-            ${isDesktop
-              ? "bottom-8 right-8 w-[400px] h-[600px] rounded-3xl shadow-lg"
-              : "inset-4 md:inset-x-20 md:inset-y-10 rounded-[2.5rem] shadow-2xl"
+            ${
+              isDesktop
+                ? "bottom-8 right-8 w-[400px] h-[600px] rounded-3xl shadow-lg"
+                : "inset-4 md:inset-x-20 md:inset-y-10 rounded-[2.5rem] shadow-2xl"
             }
             overflow-hidden`}
         >
           {/* 🎨 Abstract Animated Background */}
           <div className="absolute inset-0 z-0 overflow-hidden">
             <img
-              
               alt="Animated motion background"
               className="w-full h-full object-cover brightness-70"
             />
@@ -119,12 +134,18 @@ const SupportChat = () => {
               <div className="flex items-center gap-4">
                 <div className="relative">
                   <div className="w-12 h-12 bg-white/20 rounded-2xl backdrop-blur-md flex items-center justify-center font-bold border border-white/30">
-                    TS
+                    <img
+                      src={TripSyncLogo}
+                      alt="TripSync Logo"
+                      className="w-8 h-8"
+                    />
                   </div>
                   <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-400 border-4 border-indigo-700 rounded-full"></div>
                 </div>
                 <div>
-                  <h3 className="font-bold text-lg tracking-tight">TripSync Keralam</h3>
+                  <h3 className="font-bold text-lg tracking-tight">
+                    TripSync Keralam
+                  </h3>
                   <p className="text-xs text-indigo-100/80 font-medium">
                     {currentUser ? "Live with Friends" : "Please login to chat"}
                   </p>
@@ -162,9 +183,10 @@ const SupportChat = () => {
                     )}
                     <div
                       className={`px-5 py-3.5 rounded-2xl text-sm shadow-sm
-                        ${isMe
-                          ? "bg-gradient-to-br from-indigo-600 to-indigo-700 text-white"
-                          : "bg-white text-gray-800 border border-gray-100"
+                        ${
+                          isMe
+                            ? "bg-gradient-to-br from-indigo-600 to-indigo-700 text-white"
+                            : "bg-white text-gray-800 border border-gray-100"
                         }`}
                     >
                       <p>{msg.text}</p>
@@ -180,66 +202,67 @@ const SupportChat = () => {
 
             {/* Bus-themed Input Area */}
             <div className="relative p-5">
-  {currentUser ? (
-    <div className="relative">
+              {currentUser ? (
+                <div className="relative">
+                  {/* Emoji Picker (Above Bus) */}
+                  {showEmoji && (
+                    <div className="absolute bottom-24 left-4 z-50 bg-white rounded-2xl shadow-xl p-2">
+                      <EmojiPicker
+                        onEmojiClick={handleEmojiClick}
+                        height={350}
+                      />
+                    </div>
+                  )}
 
-      {/* Emoji Picker (Above Bus) */}
-      {showEmoji && (
-        <div className="absolute bottom-24 left-4 z-50 bg-white rounded-2xl shadow-xl p-2">
-          <EmojiPicker onEmojiClick={handleEmojiClick} height={350} />
-        </div>
-      )}
+                  {/* 🚌 Bus Body */}
+                  <div className="relative w-full bg-yellow-400 rounded-2xl h-16 flex items-center px-4 shadow-lg">
+                    {/* Wheels */}
+                    <div className="absolute -bottom-3 left-6 w-6 h-6 bg-black rounded-full"></div>
+                    <div className="absolute -bottom-3 right-6 w-6 h-6 bg-black rounded-full"></div>
 
-      {/* 🚌 Bus Body */}
-      <div className="relative w-full bg-yellow-400 rounded-2xl h-16 flex items-center px-4 shadow-lg">
+                    {/* Windows */}
+                    <div className="absolute top-2 left-16 flex space-x-4">
+                      <div className="w-10 h-5 bg-white/30 rounded-md border border-white/40"></div>
+                      <div className="w-10 h-5 bg-white/30 rounded-md border border-white/40"></div>
+                      <div className="w-10 h-5 bg-white/30 rounded-md border border-white/40"></div>
+                      <div className="w-10 h-5 bg-white/30 rounded-md border border-white/40"></div>
+                    </div>
 
-        {/* Wheels */}
-        <div className="absolute -bottom-3 left-6 w-6 h-6 bg-black rounded-full"></div>
-        <div className="absolute -bottom-3 right-6 w-6 h-6 bg-black rounded-full"></div>
+                    {/* Emoji Button */}
+                    <button
+                      onClick={() => setShowEmoji(!showEmoji)}
+                      className="absolute left-2 text-2xl hover:scale-110 transition"
+                    >
+                      😀
+                    </button>
 
-        {/* Windows */}
-        <div className="absolute top-2 left-16 flex space-x-4">
-          <div className="w-10 h-5 bg-white/30 rounded-md border border-white/40"></div>
-          <div className="w-10 h-5 bg-white/30 rounded-md border border-white/40"></div>
-          <div className="w-10 h-5 bg-white/30 rounded-md border border-white/40"></div>
-          <div className="w-10 h-5 bg-white/30 rounded-md border border-white/40"></div>
-        </div>
+                    {/* Input */}
+                    <input
+                      type="text"
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                      placeholder="Type a message..."
+                      className="flex-1 rounded-full px-4 py-2 ml-12 focus:outline-none text-sm"
+                    />
 
-        {/* Emoji Button */}
-        <button
-          onClick={() => setShowEmoji(!showEmoji)}
-          className="absolute left-2 text-2xl hover:scale-110 transition"
-        >
-          😀
-        </button>
-
-        {/* Input */}
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSend()}
-          placeholder="Type a message..."
-          className="flex-1 rounded-full px-4 py-2 ml-12 focus:outline-none text-sm"
-        />
-
-        {/* Send Button */}
-        <button
-          onClick={handleSend}
-          disabled={!input.trim()}
-          className="absolute right-2 text-2xl hover:scale-110 transition disabled:opacity-40"
-        >
-          ✈️
-        </button>
-      </div>
-    </div>
-  ) : (
-    <p className="text-center text-sm text-indigo-600">
-      Login to participate in the chat
-    </p>
-  )}
-</div>
-      </div>
+                    {/* Send Button */}
+                    <button
+                      onClick={handleSend}
+                      disabled={!input.trim()}
+                      className="absolute right-2 text-2xl hover:scale-110 transition disabled:opacity-40"
+                    >
+                      ✈️
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-center text-sm text-indigo-600">
+                  Login to participate in the chat
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </>
