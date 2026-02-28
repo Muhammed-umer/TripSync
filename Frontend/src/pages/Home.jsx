@@ -22,19 +22,8 @@ let DefaultIcon = L.icon({
 });
 
 L.Marker.prototype.options.icon = DefaultIcon;
-// Fix Leaflet z-index issue
-if (typeof window !== "undefined") {
-  const style = document.createElement("style");
-  style.innerHTML = `
-    .leaflet-pane,
-    .leaflet-top,
-    .leaflet-bottom {
-      z-index: 0 !important;
-    }
-  `;
-  document.head.appendChild(style);
-}
-// Helper to recenter map
+
+// Map recenter helper
 function MapController({ position }) {
   const map = useMap();
   useEffect(() => {

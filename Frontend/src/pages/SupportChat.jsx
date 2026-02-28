@@ -49,15 +49,16 @@ const prevLengthRef = useRef(0);
 }, [open, isDesktop]);
   // ✅ Responsive check
   useEffect(() => {
-  const checkScreen = () => {
-    const desktop = window.innerWidth >= 1024;
-    setIsDesktop(desktop);
-  };
+    const checkScreen = () => {
+      const desktop = window.innerWidth >= 1024;
+      setIsDesktop(desktop);
+      setOpen(desktop);
+    };
 
-  checkScreen();
-  window.addEventListener("resize", checkScreen);
-  return () => window.removeEventListener("resize", checkScreen);
-}, []);
+    checkScreen();
+    window.addEventListener("resize", checkScreen);
+    return () => window.removeEventListener("resize", checkScreen);
+  }, []);
 
   // ✅ Fetch users once
   useEffect(() => {
