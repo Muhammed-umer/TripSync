@@ -1,3 +1,4 @@
+// /src/pages/ChangePassword.jsx
 import { useState } from "react";
 import { auth, db } from "../firebase/firebase";
 import { updatePassword } from "firebase/auth";
@@ -15,7 +16,7 @@ const ChangePassword = () => {
       mustChangePassword: false
     });
 
-    navigate("/dashboard");
+    navigate("/home");
   };
 
   return (
