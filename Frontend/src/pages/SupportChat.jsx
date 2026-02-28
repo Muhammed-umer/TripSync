@@ -313,7 +313,7 @@ const SupportChat = () => {
                 );
               })}
 
-              <div ref={bottomRef} className="h-2"></div>
+              <div ref={bottomRef} ></div>
             </div>
 
             {/* ✅ Unread Button OUTSIDE scroll */}
