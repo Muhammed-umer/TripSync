@@ -32,23 +32,32 @@ const SupportChat = () => {
   const bottomRef = useRef(null);
   const [hasLoadedInitially, setHasLoadedInitially] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(true);
-
+const prevLengthRef = useRef(0);
   // Swipe refs (mobile only)
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
+  useEffect(() => {
+  if (!isDesktop && open) {
+    document.body.style.overflow = "hidden";
+  } else {
+    document.body.style.overflow = "auto";
+  }
 
+  return () => {
+    document.body.style.overflow = "auto";
+  };
+}, [open, isDesktop]);
   // ✅ Responsive check
   useEffect(() => {
-    const checkScreen = () => {
-      const desktop = window.innerWidth >= 1024;
-      setIsDesktop(desktop);
-      setOpen(desktop);
-    };
+  const checkScreen = () => {
+    const desktop = window.innerWidth >= 1024;
+    setIsDesktop(desktop);
+  };
 
-    checkScreen();
-    window.addEventListener("resize", checkScreen);
-    return () => window.removeEventListener("resize", checkScreen);
-  }, []);
+  checkScreen();
+  window.addEventListener("resize", checkScreen);
+  return () => window.removeEventListener("resize", checkScreen);
+}, []);
 
   // ✅ Fetch users once
   useEffect(() => {
@@ -65,42 +74,51 @@ const SupportChat = () => {
   }, []);
 
   // ✅ Real-time message listener
-  useEffect(() => {
-    const q = query(
-      collection(db, "support_messages"),
-      orderBy("timestamp", "asc"),
-    );
+useEffect(() => {
+  const q = query(
+    collection(db, "support_messages"),
+    orderBy("timestamp", "asc")
+  );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetched = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        time: doc.data().timestamp?.toDate() || new Date(),
-      }));
+  const unsubscribe = onSnapshot(q, (snapshot) => {
+    const fetched = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+      time: doc.data().timestamp?.toDate() || new Date(),
+    }));
 
-      setMessages(fetched);
-      setLoadingMessages(false);
+    const previousLength = prevLengthRef.current;
+    const newLength = fetched.length;
 
+    // ✅ Always update messages first
+    setMessages(fetched);
+    setLoadingMessages(false);
+
+    // Delay scroll logic slightly so DOM updates first
+    setTimeout(() => {
       const container = messagesRef.current;
       if (!container) return;
 
-      requestAnimationFrame(() => {
-        // First load → instant bottom
-        if (!hasLoadedInitially) {
-          container.scrollTop = container.scrollHeight;
-          setHasLoadedInitially(true);
-          return;
-        }
-
-        // Follow only if already at bottom
+      // First load
+      if (!hasLoadedInitially) {
+        container.scrollTop = container.scrollHeight;
+        setHasLoadedInitially(true);
+      }
+      // New message
+      else if (newLength > previousLength) {
         if (isAtBottom) {
           container.scrollTop = container.scrollHeight;
+        } else {
+          setUnreadCount((prev) => prev + 1);
         }
-      });
-    });
+      }
 
-    return () => unsubscribe();
-  }, [isAtBottom, hasLoadedInitially]);
+      prevLengthRef.current = newLength;
+    }, 0);
+  });
+
+  return () => unsubscribe();
+}, [isAtBottom, hasLoadedInitially]);
   // ✅ Send message
   const handleSend = async () => {
     if (!input.trim() || !currentUser) return;
@@ -186,15 +204,15 @@ const SupportChat = () => {
 
       {open && (
         <div
-          className={`fixed z-50 flex flex-col transition-all duration-500 ease-out transform
+          className={`fixed z-[9999] flex flex-col transition-all duration-500 ease-out transform
             ${
               isDesktop
                 ? "bottom-8 right-8 w-[400px] h-[600px] rounded-3xl shadow-lg"
-                : "inset-4 md:inset-x-20 md:inset-y-10 rounded-[2.5rem] shadow-2xl"
+                : "inset-0 rounded-t-3xl overflow-hidden"
             }
-            overflow-hidden`}
+            overflow-hidden touch-pan-y`}
         >
-          <div className="absolute inset-0 z-0 overflow-hidden">
+          <div className="absolute inset-0 z-0 overflow-hidden touch-pan-y">
             <img
               alt="Animated motion background"
               className="w-full h-full object-cover brightness-70"
@@ -202,7 +220,7 @@ const SupportChat = () => {
             <div className="absolute inset-0 bg-black/25"></div>
           </div>
 
-          <div className="relative z-10 flex flex-col h-full bg-transparent">
+          <div className="relative z-10 flex flex-col h-full bg-white">
             {/* Header */}
             <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-purple-800 p-6 text-white flex justify-between items-center">
               <div className="flex items-center gap-4">
@@ -239,7 +257,7 @@ const SupportChat = () => {
             {/* Messages */}
             <div
               ref={messagesRef}
-              className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3 space-y-4"
+              className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2 space-y-4"
             >
               {!loadingMessages && messages.length === 0 && (
                 <div className="text-center py-10 opacity-50 text-sm italic">
@@ -247,8 +265,12 @@ const SupportChat = () => {
                 </div>
               )}
 
-              {messages.map((msg) => {
+              {messages.map((msg, index) => {
                 const isMe = msg.senderId === currentUser?.uid;
+
+                const prevMsg = messages[index - 1];
+                const showUsername =
+                  !isMe && (!prevMsg || prevMsg.senderId !== msg.senderId);
 
                 return (
                   <div
@@ -262,14 +284,14 @@ const SupportChat = () => {
                     }
                   >
                     <div
-                      className={`relative group px-4 py-3 rounded-xl text-sm shadow-sm break-words whitespace-pre-wrap max-w-[75%]
+                      className={`relative pl-1.5 pr-2 py-0.5 rounded-md text-sm shadow-sm break-words max-w-[75%] leading-relaxed
                       ${
                         isMe
                           ? "bg-gradient-to-br from-indigo-600 to-indigo-700 text-white"
                           : "bg-white text-gray-800 border border-gray-100"
                       }`}
-                    >
-                      {!isMe && (
+                      >
+                      {showUsername && (
                         <div className="text-[11px] font-semibold text-indigo-500 mb-0.5">
                           {usersMap[msg.senderId] || "User"}
                         </div>
@@ -303,17 +325,23 @@ const SupportChat = () => {
                         </div>
                       )}
 
-                      <p>{msg.text}</p>
+                      <div className="max-w-full">
+                        <div className="flex flex-wrap items-end gap-x-2">
+                          <span className="break-words whitespace-pre-wrap">
+                            {msg.text}
+                          </span>
 
-                      <span className="text-[10px] mt-2 block opacity-60">
-                        {formatTime(msg.time)}
-                      </span>
+                          <span className="text-[10px] opacity-60 ml-auto -mt-6 whitespace-nowrap">
+                            {formatTime(msg.time)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
               })}
 
-              <div ref={bottomRef} ></div>
+              <div ref={bottomRef}></div>
             </div>
 
             {/* ✅ Unread Button OUTSIDE scroll */}
@@ -332,7 +360,7 @@ const SupportChat = () => {
             )}
 
             {/* Input Area */}
-            <div className="relative p-5">
+            <div className="relative px-5 pb-5 pt-0">
               {currentUser ? (
                 <div className="relative">
                   {showEmoji && (
