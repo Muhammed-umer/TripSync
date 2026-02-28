@@ -1,4 +1,4 @@
-// /src/pages/Login.jsx
+// ./src/pages/Login.jsx
 import { useState } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "../firebase/firebase";
