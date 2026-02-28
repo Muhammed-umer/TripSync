@@ -1,11 +1,8 @@
-
-import React, { useState, useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap, LayersControl } from "react-leaflet";
 import { useLocation } from "./useLocation"; 
 
 // src/pages/Home.jsx
-import React, { useState, useEffect, useRef } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import  { useState, useEffect, useRef } from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMap, LayersControl } from "react-leaflet";
 
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
