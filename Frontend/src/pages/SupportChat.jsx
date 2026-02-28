@@ -81,18 +81,18 @@ const SupportChat = () => {
     setInput((prev) => prev + emojiData.emoji);
   };
   useEffect(() => {
-  const fetchUsername = async () => {
-    if (!currentUser) return;
+    const fetchUsername = async () => {
+      if (!currentUser) return;
 
-    const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+      const userDoc = await getDoc(doc(db, "users", currentUser.uid));
 
-    if (userDoc.exists()) {
-      setUsername(userDoc.data().username);
-    }
-  };
+      if (userDoc.exists()) {
+        setUsername(userDoc.data().username);
+      }
+    };
 
-  fetchUsername();
-}, [currentUser]);
+    fetchUsername();
+  }, [currentUser]);
   return (
     <>
       {/* Mobile Floating Button */}
@@ -178,7 +178,7 @@ const SupportChat = () => {
                   >
                     {!isMe && (
                       <span className="text-[10px] font-bold text-indigo-600 mb-1 ml-2 uppercase">
-                        {msg.senderName?.split("@")[0] || "Friend"}
+                        {msg.senderName || "Friend"}
                       </span>
                     )}
                     <div
