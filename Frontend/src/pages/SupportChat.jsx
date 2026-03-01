@@ -90,7 +90,7 @@ const SupportChat = () => {
   useEffect(() => {
     const q = query(
       collection(db, "support_messages"),
-      orderBy("timestamp", "asc")
+      orderBy("timestamp", "asc"),
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -196,37 +196,33 @@ const SupportChat = () => {
     setSwipingId(msg.id);
   };
 
- const handleTouchMove = (e, msg) => {
-  const currentX = e.changedTouches[0].screenX;
-  const rawDistance = currentX - touchStartX.current;
+  const handleTouchMove = (e, msg) => {
+    const currentX = e.changedTouches[0].screenX;
+    const rawDistance = currentX - touchStartX.current;
 
-  const isMe = msg.senderId === currentUser?.uid;
+    const isMe = msg.senderId === currentUser?.uid;
 
-  const MAX_SWIPE = 70;     // visual limit
-  const RESISTANCE = 0.35;  // smooth feel
+    const MAX_SWIPE = 70; // visual limit
+    const RESISTANCE = 0.35; // smooth feel
+    let visualDistance = rawDistance * RESISTANCE;
+    if (isMe && visualDistance < 0) {
+      setSwipeOffset(Math.max(visualDistance, -MAX_SWIPE));
+    } else if (!isMe && visualDistance > 0) {
+      setSwipeOffset(Math.min(visualDistance, MAX_SWIPE));
+    }
+  };
 
-  let visualDistance = rawDistance * RESISTANCE;
+  const handleTouchEnd = (msg) => {
+    const RELEASE_THRESHOLD = 120; // real finger movement
+    const rawSwipe = swipeOffset / 0.35;
+    // reverse resistance to estimate original distance
+    if (Math.abs(rawSwipe) > RELEASE_THRESHOLD) {
+      setReplyTo(msg);
+    }
 
-  if (isMe && visualDistance < 0) {
-    setSwipeOffset(Math.max(visualDistance, -MAX_SWIPE));
-  } else if (!isMe && visualDistance > 0) {
-    setSwipeOffset(Math.min(visualDistance, MAX_SWIPE));
-  }
-};
-
- const handleTouchEnd = (msg) => {
-  const RELEASE_THRESHOLD = 120; // real finger movement
-
-  const rawSwipe = swipeOffset / 0.35; 
-  // reverse resistance to estimate original distance
-
-  if (Math.abs(rawSwipe) > RELEASE_THRESHOLD) {
-    setReplyTo(msg);
-  }
-
-  setSwipeOffset(0);
-  setSwipingId(null);
-};
+    setSwipeOffset(0);
+    setSwipingId(null);
+  };
   return (
     <>
       {!isDesktop && !open && (
@@ -360,17 +356,16 @@ const SupportChat = () => {
                       </div>
                     )}
                     {/* Desktop Reply Button */}
-                    {isDesktop && (
-                      <button
-                        onClick={() => setReplyTo(msg)}
-                        className={`absolute top-2 ${
-                          isMe ? "-left-8" : "-right-8"
-                        } p-1 rounded-full hover:bg-black/10 transition`}
-                      >
-                        <Reply size={16} />
-                      </button>
-                    )}
-
+{isDesktop && (
+  <button
+    onClick={() => setReplyTo(msg)}
+    className={`absolute top-1/2 -translate-y-1/2 ${
+      isMe ? "-left-6" : "-right-6"
+    } text-black hover:scale-110 transition`}
+  >
+    <Reply size={16} strokeWidth={2.2} />
+  </button>
+)}
                     {msg.replyTo && (
                       <div
                         className={`relative mb-2 px-3 py-2 rounded-lg text-xs max-w-full
