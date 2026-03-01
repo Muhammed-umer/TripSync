@@ -1,4 +1,3 @@
-/** @type {import('tailwindcss').Config} */
 export default {
   content: [
     "./index.html",
@@ -6,12 +5,14 @@ export default {
   ],
   theme: {
     extend: {
-      colors: {
-        emeraldDark: "#064e3b",
-        waterBlue: "#0c4a6e",
+      animation: {
+        boatMove: "boatMove 20s linear infinite",
       },
-      boxShadow: {
-        cinematic: "0 25px 50px -12px rgba(0,0,0,0.6)",
+      keyframes: {
+        boatMove: {
+          "0%": { transform: "translateX(-150px)" },
+          "100%": { transform: "translateX(110vw)" },
+        },
       },
     },
   },

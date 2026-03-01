@@ -1,2 +1,10 @@
 /* ./src/index.css */
 @import "tailwindcss";
+@keyframes boatMove {
+  0% {
+    transform: translateX(-200px);
+  }
+  100% {
+    transform: translateX(110vw);
+  }
+}
