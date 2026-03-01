@@ -196,30 +196,37 @@ const SupportChat = () => {
     setSwipingId(msg.id);
   };
 
-  const handleTouchMove = (e, msg) => {
+ const handleTouchMove = (e, msg) => {
   const currentX = e.changedTouches[0].screenX;
   const rawDistance = currentX - touchStartX.current;
 
   const isMe = msg.senderId === currentUser?.uid;
 
-  const MAX_SWIPE = 80; // 👈 maximum movement limit
-  const RESISTANCE = 0.4; // 👈 smooth resistance
+  const MAX_SWIPE = 70;     // visual limit
+  const RESISTANCE = 0.35;  // smooth feel
 
-  let distance = rawDistance * RESISTANCE;
+  let visualDistance = rawDistance * RESISTANCE;
 
-  // Restrict direction
-  if (isMe && distance < 0) {
-    setSwipeOffset(Math.max(distance, -MAX_SWIPE));
-  } else if (!isMe && distance > 0) {
-    setSwipeOffset(Math.min(distance, MAX_SWIPE));
+  if (isMe && visualDistance < 0) {
+    setSwipeOffset(Math.max(visualDistance, -MAX_SWIPE));
+  } else if (!isMe && visualDistance > 0) {
+    setSwipeOffset(Math.min(visualDistance, MAX_SWIPE));
   }
 };
 
-  const handleTouchEnd = (msg) => {
-    if (Math.abs(swipeOffset) > 80) setReplyTo(msg);
-    setSwipeOffset(0);
-    setSwipingId(null);
-  };
+ const handleTouchEnd = (msg) => {
+  const RELEASE_THRESHOLD = 120; // real finger movement
+
+  const rawSwipe = swipeOffset / 0.35; 
+  // reverse resistance to estimate original distance
+
+  if (Math.abs(rawSwipe) > RELEASE_THRESHOLD) {
+    setReplyTo(msg);
+  }
+
+  setSwipeOffset(0);
+  setSwipingId(null);
+};
   return (
     <>
       {!isDesktop && !open && (
