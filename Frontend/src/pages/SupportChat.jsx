@@ -38,6 +38,8 @@ const SupportChat = () => {
   // Swipe refs (mobile only)
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
+  const [swipingId, setSwipingId] = useState(null);
+const [swipeOffset, setSwipeOffset] = useState(0);
 
   // ✅ Scroll to bottom when chat opens if we were already at the bottom
   useEffect(() => {
@@ -200,19 +202,36 @@ const SupportChat = () => {
   }, []);
 
   // ✅ Swipe Handlers (Mobile Only)
-  const handleTouchStart = (e) => {
-    touchStartX.current = e.changedTouches[0].screenX;
-  };
+  const handleTouchStart = (e, msg) => {
+  touchStartX.current = e.changedTouches[0].screenX;
+  setSwipingId(msg.id);
+};
 
-  const handleTouchEnd = (e, msg) => {
-    touchEndX.current = e.changedTouches[0].screenX;
-    const distance = touchEndX.current - touchStartX.current;
+const handleTouchMove = (e, msg) => {
+  const currentX = e.changedTouches[0].screenX;
+  const distance = currentX - touchStartX.current;
 
-    // Swipe right threshold
-    if (distance > 70) {
-      setReplyTo(msg);
-    }
-  };
+  const isMe = msg.senderId === currentUser?.uid;
+
+  // ✅ Restrict direction
+  if (isMe && distance < 0) {
+    setSwipeOffset(distance); // Right → Left
+  } else if (!isMe && distance > 0) {
+    setSwipeOffset(distance); // Left → Right
+  }
+};
+
+const handleTouchEnd = (msg) => {
+  const threshold = 80;
+
+  if (Math.abs(swipeOffset) > threshold) {
+    setReplyTo(msg);
+  }
+
+  // Reset animation
+  setSwipeOffset(0);
+  setSwipingId(null);
+};
 
   return (
     <>
@@ -314,20 +333,22 @@ const SupportChat = () => {
 
               return (
                 <div
-                  key={msg.id}
-                  className={`flex flex-col ${isMe ? "items-end" : "items-start"
-                    }`}
-                  onTouchStart={!isDesktop ? handleTouchStart : undefined}
-                  onTouchEnd={
-                    !isDesktop ? (e) => handleTouchEnd(e, msg) : undefined
-                  }
-                >
+                    key={msg.id}
+                    className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
+                    onTouchStart={!isDesktop ? (e) => handleTouchStart(e, msg) : undefined}
+                    onTouchMove={!isDesktop ? (e) => handleTouchMove(e, msg) : undefined}
+                    onTouchEnd={!isDesktop ? () => handleTouchEnd(msg) : undefined}
+                  >
                   <div
-                    className={`relative pl-1.5 pr-2 py-0.5 rounded-md text-sm shadow-sm break-words max-w-[75%] leading-relaxed
-                      ${isMe
-                        ? "bg-gradient-to-br from-indigo-600 to-indigo-700 text-white"
-                        : "bg-white text-gray-800 border border-gray-100"
-                      }`}
+                    className={`relative pl-1.5 pr-2 py-0.5 rounded-md text-sm shadow-sm break-words max-w-[75%] leading-relaxed transition-transform duration-200 ease-out
+                    ${isMe
+                      ? "bg-gradient-to-br from-indigo-600 to-indigo-700 text-white"
+                      : "bg-white text-gray-800 border border-gray-100"
+                    }`}
+                    style={{
+                      transform:
+                        swipingId === msg.id ? `translateX(${swipeOffset}px)` : "translateX(0px)",
+                    }}
                   >
                     {showUsername && (
                       <div className="text-[11px] font-semibold text-indigo-500 mb-0.5">
@@ -473,7 +494,7 @@ const SupportChat = () => {
           </div>
         </div>
       </div>
-      )}
+      
     </>
   );
 };
