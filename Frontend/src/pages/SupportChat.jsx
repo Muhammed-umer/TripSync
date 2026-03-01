@@ -12,6 +12,9 @@ import {
   orderBy,
   serverTimestamp,
   getDocs,
+  updateDoc,
+  doc,
+  arrayUnion,
 } from "firebase/firestore";
 
 import TripSyncLogo from "../assets/TripSync_Logo.png";
@@ -32,6 +35,7 @@ const SupportChat = () => {
   const isAtBottomRef = useRef(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const bottomRef = useRef(null);
+  const scrollPositionRef = useRef(0);
 
   const [loadingMessages, setLoadingMessages] = useState(true);
   const prevLengthRef = useRef(0);
@@ -39,6 +43,23 @@ const SupportChat = () => {
   const touchStartX = useRef(0);
   const [swipingId, setSwipingId] = useState(null);
   const [swipeOffset, setSwipeOffset] = useState(0);
+
+  const [showInfo, setShowInfo] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState(null);
+
+  // Close popup when clicking outside
+  useEffect(() => {
+    const handleClick = () => {
+      setShowInfo(false);
+      setSelectedMessage(null);
+    };
+
+    if (showInfo) {
+      window.addEventListener("click", handleClick);
+    }
+
+    return () => window.removeEventListener("click", handleClick);
+  }, [showInfo]);
 
   // Scroll to bottom when opening chat
   useEffect(() => {
@@ -106,6 +127,23 @@ const SupportChat = () => {
       setMessages(fetched);
       setLoadingMessages(false);
 
+      if (open && currentUser) {
+        fetched.forEach(async (msg) => {
+          const alreadySeen = msg.seenBy?.some(
+            (u) => typeof u === "object" && u.userId === currentUser.uid,
+          );
+
+          if (msg.senderId !== currentUser.uid && !alreadySeen) {
+            await updateDoc(doc(db, "support_messages", msg.id), {
+              seenBy: arrayUnion({
+                userId: currentUser.uid,
+                seenAt: new Date(), // Storing as Date object for consistency with how fetch reads it
+              }),
+            });
+          }
+        });
+      }
+
       requestAnimationFrame(() => {
         if (!open) {
           prevLengthRef.current = newLength;
@@ -149,14 +187,15 @@ const SupportChat = () => {
         timestamp: serverTimestamp(),
         replyTo: replyTo
           ? {
-              text: replyTo.text,
-              senderId: replyTo.senderId,
-            }
+            text: replyTo.text,
+            senderId: replyTo.senderId,
+          }
           : null,
+        seenBy: [],
+        deliveredTo: [],
       });
 
       setReplyTo(null);
-      // ❌ NO SCROLL HERE — Firestore listener handles it
     } catch (error) {
       console.error("Error sending message:", error);
     }
@@ -238,11 +277,10 @@ const SupportChat = () => {
 
       <div
         className={`fixed z-[9999] flex flex-col transition-all duration-500 ease-out transform
-    ${
-      isDesktop
-        ? "bottom-8 right-8 w-[400px] h-[600px] rounded-3xl shadow-lg"
-        : "inset-0 rounded-t-3xl overflow-hidden"
-    }
+    ${isDesktop
+            ? "bottom-8 right-8 w-[400px] h-[600px] rounded-3xl shadow-lg"
+            : "inset-0 rounded-t-3xl overflow-hidden"
+          }
     ${open ? "translate-y-0 opacity-100" : "translate-y-full opacity-0 pointer-events-none"}
     overflow-hidden touch-pan-y`}
       >
@@ -293,6 +331,63 @@ const SupportChat = () => {
             )}
           </div>
 
+          {showInfo && selectedMessage && (
+            <div className="absolute top-[90px] left-1/2 -translate-x-1/2 w-[320px] bg-white shadow-2xl rounded-xl z-[10000] p-4 text-sm border">
+              <div className="flex justify-between items-center mb-3">
+                <h4 className="font-semibold">Message Info</h4>
+                <button
+                  onClick={() => {
+                    setShowInfo(false);
+                    setSelectedMessage(null);
+                  }}
+                  className="text-gray-500 hover:text-black"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="mb-2 text-xs text-gray-500">
+                Sent: {formatTime(selectedMessage.time)}
+              </div>
+
+              <div className="font-semibold mb-2">Seen By</div>
+
+              {selectedMessage.seenBy?.length > 0 ? (
+                selectedMessage.seenBy.map((user, i) => {
+                  const userId = typeof user === "string" ? user : user.userId;
+
+                  // Handle Firestore Timestamp or standard Date object
+                  let seenTime = null;
+                  if (user?.seenAt) {
+                    if (typeof user.seenAt.toDate === "function") {
+                      seenTime = user.seenAt.toDate();
+                    } else if (user.seenAt.seconds) {
+                      seenTime = new Date(user.seenAt.seconds * 1000);
+                    } else {
+                      seenTime = new Date(user.seenAt);
+                    }
+                  }
+
+                  return (
+                    <div key={i} className="flex justify-between mb-1">
+                      <span>{usersMap[userId] || "User"}</span>
+                      <span className="text-gray-500 text-xs">
+                        {seenTime
+                          ? seenTime.toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })
+                          : ""}
+                      </span>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-gray-400">Not seen yet</div>
+              )}
+            </div>
+          )}
+
           {/* Messages */}
           <div
             ref={messagesRef}
@@ -337,12 +432,18 @@ const SupportChat = () => {
                   }
                 >
                   <div
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      if (isMe) {
+                        setSelectedMessage(msg);
+                        setShowInfo(true);
+                      }
+                    }}
                     className={`relative pl-1.5 pr-2 py-0.5 rounded-md text-sm shadow-sm break-words max-w-[75%] leading-relaxed transition-transform duration-200 ease-out
-                    ${
-                      isMe
+                    ${isMe
                         ? "bg-gradient-to-br from-indigo-600 to-indigo-700 text-white"
                         : "bg-white text-gray-800 border border-gray-100"
-                    }`}
+                      }`}
                     style={{
                       transform:
                         swipingId === msg.id
@@ -356,24 +457,22 @@ const SupportChat = () => {
                       </div>
                     )}
                     {/* Desktop Reply Button */}
-{isDesktop && (
-  <button
-    onClick={() => setReplyTo(msg)}
-    className={`absolute top-1/2 -translate-y-1/2 ${
-      isMe ? "-left-6" : "-right-6"
-    } text-black hover:scale-110 transition`}
-  >
-    <Reply size={16} strokeWidth={2.2} />
-  </button>
-)}
+                    {isDesktop && (
+                      <button
+                        onClick={() => setReplyTo(msg)}
+                        className={`absolute top-1/2 -translate-y-1/2 ${isMe ? "-left-6" : "-right-6"
+                          } text-black hover:scale-110 transition`}
+                      >
+                        <Reply size={17} strokeWidth={2.2} />
+                      </button>
+                    )}
                     {msg.replyTo && (
                       <div
                         className={`relative mb-2 px-3 py-2 rounded-lg text-xs max-w-full
-      ${
-        isMe
-          ? "bg-white/20 border-l-4 border-green-300"
-          : "bg-gray-100 border-l-4 border-indigo-500"
-      }`}
+                      ${isMe
+                            ? "bg-white/20 border-l-4 border-green-300"
+                            : "bg-gray-100 border-l-4 border-indigo-500"
+                          }`}
                       >
                         {/* Username */}
                         <div className="font-semibold text-[11px] truncate">
@@ -487,6 +586,7 @@ const SupportChat = () => {
                     ✈️
                   </button>
                 </div>
+
               </div>
             ) : (
               <p className="text-center text-sm text-indigo-600">
