@@ -1,70 +1,15 @@
-import React, { useState, useEffect } from "react";
+// ./src/pages/Home.jsx
+import React from "react";
 import { useNavigate } from "react-router-dom";
 import vagamonNight from "../assets/vagamon-night.jpg";
-import {
-  MapContainer,
-  TileLayer,
-  Marker,
-  Popup,
-  useMap,
-} from "react-leaflet";
-import { useLocation } from "./useLocation";
-import "leaflet/dist/leaflet.css";
-import L from "leaflet";
 import SupportChat from "./SupportChat";
-
-// Fix Leaflet marker icon
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
-
-let DefaultIcon = L.icon({
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12.5, 41],
-  popupAnchor: [0, -41],
-});
-
-L.Marker.prototype.options.icon = DefaultIcon;
-
-function MapController({ position }) {
-  const map = useMap();
-  useEffect(() => {
-    if (position) map.setView(position, map.getZoom());
-  }, [position, map]);
-  return null;
-}
 
 const Home = () => {
   const navigate = useNavigate();
-  const [showMap, setShowMap] = useState(false);
-  const liveLocation = useLocation(20);
-
-  const currentPos = liveLocation
-    ? [liveLocation.lat, liveLocation.lng]
-    : [12.9716, 77.5946];
 
   const handleEmergency = () => {
-    alert("Emergency triggered! Coordinates: " + currentPos.join(", "));
+    alert("Emergency triggered!");
   };
-
-  if (showMap) {
-    return (
-      <div className="h-screen w-full">
-        <MapContainer
-          center={currentPos}
-          zoom={16}
-          style={{ height: "100%", width: "100%" }}
-        >
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-          <Marker position={currentPos}>
-            <Popup>You are here</Popup>
-          </Marker>
-          <MapController position={currentPos} />
-        </MapContainer>
-      </div>
-    );
-  }
 
   return (
     <div
@@ -91,7 +36,6 @@ const Home = () => {
                 </p>
               </div>
 
-              {/* PROFILE BUTTON */}
               <div
                 onClick={() => navigate("/profile")}
                 className="w-12 h-12 bg-gradient-to-br from-cyan-400 to-teal-300 rounded-xl shadow-lg flex items-center justify-center cursor-pointer hover:scale-110 transition text-black font-bold"
@@ -103,24 +47,13 @@ const Home = () => {
             {/* CONTENT */}
             <div className="p-12 space-y-12">
 
-              {/* MAP */}
+              {/* MAP PREVIEW → NAVIGATE */}
               <div
-                onClick={() => setShowMap(true)}
+                onClick={() => navigate("/navigation")}
                 className="w-full rounded-[2rem] overflow-hidden cursor-pointer shadow-xl border border-white/10"
               >
-                <div className="h-52">
-                  <MapContainer
-                    center={currentPos}
-                    zoom={14}
-                    zoomControl={false}
-                    dragging={false}
-                    touchZoom={false}
-                    scrollWheelZoom={false}
-                    style={{ height: "100%", width: "100%" }}
-                  >
-                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                    <Marker position={currentPos} />
-                  </MapContainer>
+                <div className="h-52 bg-black flex items-center justify-center text-white text-lg font-bold">
+                  Open Live Navigation Map
                 </div>
               </div>
 
@@ -158,7 +91,7 @@ const Home = () => {
                   </div>
 
                   <div className="w-full h-3 bg-white/10 rounded-full">
-                    <div className="h-full bg-emerald-400 rounded-full w-3/4 shadow-[0_0_10px_rgba(16,185,129,0.5)]"></div>
+                    <div className="h-full bg-emerald-400 rounded-full w-3/4"></div>
                   </div>
                 </div>
 
@@ -167,7 +100,7 @@ const Home = () => {
             </div>
           </div>
 
-          {/* ================= RIGHT CHAT ================= */}
+          {/* CHAT */}
           <div className="flex justify-end">
             <SupportChat />
           </div>

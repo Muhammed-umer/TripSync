@@ -13,6 +13,7 @@ import {
   serverTimestamp,
   getDocs,
 } from "firebase/firestore";
+
 import TripSyncLogo from "../assets/TripSync_Logo.png";
 import { Reply, X } from "lucide-react";
 
@@ -28,20 +29,18 @@ const SupportChat = () => {
   const [replyTo, setReplyTo] = useState(null);
   const messagesRef = useRef(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
-  const isAtBottomRef = useRef(true); // Track bottom state synchronously
+  const isAtBottomRef = useRef(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const bottomRef = useRef(null);
 
   const [loadingMessages, setLoadingMessages] = useState(true);
   const prevLengthRef = useRef(0);
-  const scrollPositionRef = useRef(0);
-  // Swipe refs (mobile only)
-  const touchStartX = useRef(0);
-  const touchEndX = useRef(0);
-  const [swipingId, setSwipingId] = useState(null);
-const [swipeOffset, setSwipeOffset] = useState(0);
 
-  // ✅ Scroll to bottom when chat opens if we were already at the bottom
+  const touchStartX = useRef(0);
+  const [swipingId, setSwipingId] = useState(null);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+
+  // Scroll to bottom when opening chat
   useEffect(() => {
     if (open && isAtBottomRef.current) {
       setTimeout(() => {
@@ -50,35 +49,31 @@ const [swipeOffset, setSwipeOffset] = useState(0);
     }
   }, [open]);
 
+  // Lock body scroll on mobile
   useEffect(() => {
     if (!isDesktop && open) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "auto";
     }
-
     return () => {
       document.body.style.overflow = "auto";
     };
   }, [open, isDesktop]);
-  // ✅ Responsive check
+
+  // Responsive check
   useEffect(() => {
     const checkScreen = () => {
       const desktop = window.innerWidth >= 1024;
       setIsDesktop(desktop);
-
-      // Only open automatically if switching from mobile to desktop
-      if (desktop) {
-        setOpen(true);
-      }
+      if (desktop) setOpen(true);
     };
-
     checkScreen();
     window.addEventListener("resize", checkScreen);
     return () => window.removeEventListener("resize", checkScreen);
   }, []);
 
-  // ✅ Fetch users once
+  // Fetch users
   useEffect(() => {
     const fetchUsers = async () => {
       const snapshot = await getDocs(collection(db, "users"));
@@ -88,11 +83,10 @@ const [swipeOffset, setSwipeOffset] = useState(0);
       });
       setUsersMap(map);
     };
-
     fetchUsers();
   }, []);
 
-  // ✅ Real-time message listener
+  // Real-time listener
   useEffect(() => {
     const q = query(
       collection(db, "support_messages"),
@@ -118,16 +112,17 @@ const [swipeOffset, setSwipeOffset] = useState(0);
           return;
         }
 
-        const isFirstLoad = prevLengthRef.current === 0;
+        const isFirstLoad = previousLength === 0;
         const lastMessage = fetched[fetched.length - 1];
 
         if (isFirstLoad) {
           bottomRef.current?.scrollIntoView({ behavior: "auto" });
         } else if (newLength > previousLength) {
-          // Auto-scroll if msg is from me OR if user is already near the bottom
-          // Changed behavior to "auto" to prevent animation conflict with new flex item rendering
-          if (lastMessage?.senderId === currentUser?.uid || isAtBottomRef.current) {
-            bottomRef.current?.scrollIntoView({ behavior: "auto" });
+          if (
+            lastMessage?.senderId === currentUser?.uid ||
+            isAtBottomRef.current
+          ) {
+            bottomRef.current?.scrollIntoView({ behavior: "smooth" });
           } else {
             setUnreadCount((prev) => prev + 1);
           }
@@ -139,18 +134,13 @@ const [swipeOffset, setSwipeOffset] = useState(0);
 
     return () => unsubscribe();
   }, [open, currentUser]);
-  // ✅ Send message
+
+  // ✅ FIXED SEND FUNCTION (ONLY CHANGE)
   const handleSend = async () => {
     if (!input.trim() || !currentUser) return;
 
     const messageText = input.trim();
     setInput("");
-
-    // Start auto scrolling immediately to prevent the input from breaking its visual flow
-    requestAnimationFrame(() => {
-      bottomRef.current?.scrollIntoView({ behavior: "auto" });
-      isAtBottomRef.current = true;
-    });
 
     try {
       await addDoc(collection(db, "support_messages"), {
@@ -159,13 +149,14 @@ const [swipeOffset, setSwipeOffset] = useState(0);
         timestamp: serverTimestamp(),
         replyTo: replyTo
           ? {
-            text: replyTo.text,
-            senderId: replyTo.senderId,
-          }
+              text: replyTo.text,
+              senderId: replyTo.senderId,
+            }
           : null,
       });
 
       setReplyTo(null);
+      // ❌ NO SCROLL HERE — Firestore listener handles it
     } catch (error) {
       console.error("Error sending message:", error);
     }
@@ -178,13 +169,13 @@ const [swipeOffset, setSwipeOffset] = useState(0);
     setInput((prev) => prev + emojiData.emoji);
   };
 
-  // ✅ Scroll detection
+  // Scroll detection
   useEffect(() => {
     const container = messagesRef.current;
     if (!container) return;
 
     const handleScroll = () => {
-      const threshold = 100; // slightly larger threshold for detecting "near bottom"
+      const threshold = 100;
       const atBottom =
         container.scrollHeight - container.scrollTop - container.clientHeight <
         threshold;
@@ -192,47 +183,43 @@ const [swipeOffset, setSwipeOffset] = useState(0);
       setIsAtBottom(atBottom);
       isAtBottomRef.current = atBottom;
 
-      if (atBottom) {
-        setUnreadCount(0);
-      }
+      if (atBottom) setUnreadCount(0);
     };
 
     container.addEventListener("scroll", handleScroll);
     return () => container.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // ✅ Swipe Handlers (Mobile Only)
+  // Swipe
   const handleTouchStart = (e, msg) => {
-  touchStartX.current = e.changedTouches[0].screenX;
-  setSwipingId(msg.id);
-};
+    touchStartX.current = e.changedTouches[0].screenX;
+    setSwipingId(msg.id);
+  };
 
-const handleTouchMove = (e, msg) => {
+  const handleTouchMove = (e, msg) => {
   const currentX = e.changedTouches[0].screenX;
-  const distance = currentX - touchStartX.current;
+  const rawDistance = currentX - touchStartX.current;
 
   const isMe = msg.senderId === currentUser?.uid;
 
-  // ✅ Restrict direction
+  const MAX_SWIPE = 80; // 👈 maximum movement limit
+  const RESISTANCE = 0.4; // 👈 smooth resistance
+
+  let distance = rawDistance * RESISTANCE;
+
+  // Restrict direction
   if (isMe && distance < 0) {
-    setSwipeOffset(distance); // Right → Left
+    setSwipeOffset(Math.max(distance, -MAX_SWIPE));
   } else if (!isMe && distance > 0) {
-    setSwipeOffset(distance); // Left → Right
+    setSwipeOffset(Math.min(distance, MAX_SWIPE));
   }
 };
 
-const handleTouchEnd = (msg) => {
-  const threshold = 80;
-
-  if (Math.abs(swipeOffset) > threshold) {
-    setReplyTo(msg);
-  }
-
-  // Reset animation
-  setSwipeOffset(0);
-  setSwipingId(null);
-};
-
+  const handleTouchEnd = (msg) => {
+    if (Math.abs(swipeOffset) > 80) setReplyTo(msg);
+    setSwipeOffset(0);
+    setSwipingId(null);
+  };
   return (
     <>
       {!isDesktop && !open && (
@@ -248,10 +235,11 @@ const handleTouchEnd = (msg) => {
 
       <div
         className={`fixed z-[9999] flex flex-col transition-all duration-500 ease-out transform
-    ${isDesktop
-            ? "bottom-8 right-8 w-[400px] h-[600px] rounded-3xl shadow-lg"
-            : "inset-0 rounded-t-3xl overflow-hidden"
-          }
+    ${
+      isDesktop
+        ? "bottom-8 right-8 w-[400px] h-[600px] rounded-3xl shadow-lg"
+        : "inset-0 rounded-t-3xl overflow-hidden"
+    }
     ${open ? "translate-y-0 opacity-100" : "translate-y-full opacity-0 pointer-events-none"}
     overflow-hidden touch-pan-y`}
       >
@@ -333,21 +321,30 @@ const handleTouchEnd = (msg) => {
 
               return (
                 <div
-                    key={msg.id}
-                    className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
-                    onTouchStart={!isDesktop ? (e) => handleTouchStart(e, msg) : undefined}
-                    onTouchMove={!isDesktop ? (e) => handleTouchMove(e, msg) : undefined}
-                    onTouchEnd={!isDesktop ? () => handleTouchEnd(msg) : undefined}
-                  >
+                  key={msg.id}
+                  className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
+                  onTouchStart={
+                    !isDesktop ? (e) => handleTouchStart(e, msg) : undefined
+                  }
+                  onTouchMove={
+                    !isDesktop ? (e) => handleTouchMove(e, msg) : undefined
+                  }
+                  onTouchEnd={
+                    !isDesktop ? () => handleTouchEnd(msg) : undefined
+                  }
+                >
                   <div
                     className={`relative pl-1.5 pr-2 py-0.5 rounded-md text-sm shadow-sm break-words max-w-[75%] leading-relaxed transition-transform duration-200 ease-out
-                    ${isMe
-                      ? "bg-gradient-to-br from-indigo-600 to-indigo-700 text-white"
-                      : "bg-white text-gray-800 border border-gray-100"
+                    ${
+                      isMe
+                        ? "bg-gradient-to-br from-indigo-600 to-indigo-700 text-white"
+                        : "bg-white text-gray-800 border border-gray-100"
                     }`}
                     style={{
                       transform:
-                        swipingId === msg.id ? `translateX(${swipeOffset}px)` : "translateX(0px)",
+                        swipingId === msg.id
+                          ? `translateX(${swipeOffset}px)`
+                          : "translateX(0px)",
                     }}
                   >
                     {showUsername && (
@@ -359,8 +356,9 @@ const handleTouchEnd = (msg) => {
                     {isDesktop && (
                       <button
                         onClick={() => setReplyTo(msg)}
-                        className={`absolute top-2 ${isMe ? "-left-8" : "-right-8"
-                          } p-1 rounded-full hover:bg-black/10 transition`}
+                        className={`absolute top-2 ${
+                          isMe ? "-left-8" : "-right-8"
+                        } p-1 rounded-full hover:bg-black/10 transition`}
                       >
                         <Reply size={16} />
                       </button>
@@ -368,15 +366,20 @@ const handleTouchEnd = (msg) => {
 
                     {msg.replyTo && (
                       <div
-                        className={`mb-2 p-2 rounded-lg border-l-4 ${isMe
-                          ? "bg-green-100 border-green-500"
-                          : "bg-gray-100 border-indigo-500"
-                          }`}
+                        className={`relative mb-2 px-3 py-2 rounded-lg text-xs max-w-full
+      ${
+        isMe
+          ? "bg-white/20 border-l-4 border-green-300"
+          : "bg-gray-100 border-l-4 border-indigo-500"
+      }`}
                       >
-                        <div className="text-xs font-semibold">
+                        {/* Username */}
+                        <div className="font-semibold text-[11px] truncate">
                           {usersMap[msg.replyTo.senderId] || "User"}
                         </div>
-                        <div className="text-xs truncate opacity-80">
+
+                        {/* Replied Text */}
+                        <div className="opacity-80 truncate break-words">
                           {msg.replyTo.text}
                         </div>
                       </div>
@@ -422,10 +425,7 @@ const handleTouchEnd = (msg) => {
               <div className="relative">
                 {showEmoji && (
                   <div className="absolute bottom-24  left-4 z-50 bg-white rounded-2xl shadow-xl p-2">
-                    <EmojiPicker
-                      onEmojiClick={handleEmojiClick}
-                      height={350}
-                    />
+                    <EmojiPicker onEmojiClick={handleEmojiClick} height={350} />
                   </div>
                 )}
 
@@ -494,7 +494,6 @@ const handleTouchEnd = (msg) => {
           </div>
         </div>
       </div>
-      
     </>
   );
 };

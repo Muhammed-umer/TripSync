@@ -1,3 +1,4 @@
+// ./src/pages/SearchField.jsx
 import { useEffect } from "react";
 import { useMap } from "react-leaflet";
 import { GeoSearchControl, OpenStreetMapProvider } from "leaflet-geosearch";
