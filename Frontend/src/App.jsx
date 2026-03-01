@@ -7,6 +7,8 @@ import Home from "./pages/Home";
 import Profile from "./pages/Profile";
 import ChangePassword from "./pages/ChangePassword";
 import Navigation from "./pages/Navigation"; // ✅ ADD THIS
+import Attendance from "./pages/Attendance";
+
 
 // 🔐 Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
@@ -68,6 +70,8 @@ function App() {
 
       {/* Catch unknown routes */}
       <Route path="*" element={<Navigate to="/" replace />} />
+
+      <Route path="/attendance" element={<Attendance />} />
 
     </Routes>
   );

@@ -90,34 +90,39 @@ const Home = () => {
                 </div>
               </div>
 
-              {/* EMERGENCY BUTTON */}
-              <button
-                onClick={handleEmergency}
-                className="w-full h-36 
-                           bg-gradient-to-r from-red-600 to-red-500 
-                           rounded-[2rem] 
-                           shadow-2xl 
-                           flex flex-col 
-                           items-center 
-                           justify-center 
-                           gap-4 
-                           text-white 
-                           hover:scale-[1.02] 
-                           transition"
-              >
-                <div className="w-14 h-14 bg-red-700 
-                                rounded-2xl 
-                                flex items-center 
-                                justify-center 
-                                text-3xl 
-                                animate-pulse">
-                  🚨
-                </div>
-                <span className="font-bold text-lg">
-                  Emergency Help
-                </span>
-              </button>
+              {/* ATTENDANCE + EMERGENCY */}
+<div className="grid grid-cols-2 gap-6">
 
+  {/* Attendance Card */}
+  <div
+  onClick={() => navigate("/attendance")}
+  className="h-40 bg-gradient-to-br from-indigo-500 to-purple-600
+             rounded-[2rem] shadow-2xl 
+             flex flex-col items-center justify-center
+             text-white cursor-pointer 
+             hover:scale-[1.03] transition"
+>
+    <div className="text-3xl mb-2">📝</div>
+    <span className="font-bold text-sm tracking-wide">
+      Attendance
+    </span>
+  </div>
+
+  {/* Emergency Card */}
+  <button
+    onClick={handleEmergency}
+    className="h-40 bg-gradient-to-r from-red-600 to-red-500 
+               rounded-[2rem] shadow-2xl 
+               flex flex-col items-center justify-center
+               text-white hover:scale-[1.03] transition"
+  >
+    <div className="text-3xl mb-2 animate-pulse">🚨</div>
+    <span className="font-bold text-sm tracking-wide">
+      Emergency Help
+    </span>
+  </button>
+
+</div>
               {/* CURRENT EXPEDITION */}
               <div className="w-full 
                               bg-gradient-to-r from-[#1E3A5F] to-[#0F3460] 
