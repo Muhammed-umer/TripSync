@@ -6,8 +6,10 @@ import { db } from "../firebase/firebase";
 import {
   doc,
   getDoc,
-  updateDoc,
+  setDoc,
+  collection,
   onSnapshot,
+  serverTimestamp
 } from "firebase/firestore";
 
 const Attendance = () => {
@@ -15,16 +17,18 @@ const Attendance = () => {
   const { currentUser } = useAuth();
 
   const [username, setUsername] = useState("");
-  const [votes, setVotes] = useState({
-    present: [],
-    absent: [],
-  });
-
   const [vote, setVote] = useState(null);
+  const [presentCount, setPresentCount] = useState(0);
+  const [absentCount, setAbsentCount] = useState(0);
 
-  const attendanceRef = doc(db, "attendance", "expedition1");
+  const votesRef = collection(
+    db,
+    "attendance",
+    "expedition1",
+    "votes"
+  );
 
-  // 🔹 Fetch username from users collection
+  // Get username
   useEffect(() => {
     const fetchUsername = async () => {
       if (!currentUser) return;
@@ -38,160 +42,83 @@ const Attendance = () => {
     fetchUsername();
   }, [currentUser]);
 
-  // 🔹 Real-time listener
+  // Real-time vote listener
   useEffect(() => {
-    if (!username) return;
+    const unsubscribe = onSnapshot(votesRef, (snapshot) => {
+      let present = 0;
+      let absent = 0;
+      let userVote = null;
 
-    const unsubscribe = onSnapshot(attendanceRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
+      snapshot.forEach((doc) => {
+        const data = doc.data();
 
-        const presentList = data.present || [];
-        const absentList = data.absent || [];
+        if (data.status === "present") present++;
+        if (data.status === "absent") absent++;
 
-        setVotes({
-          present: presentList,
-          absent: absentList,
-        });
-
-        if (presentList.some((u) => u.username === username)) {
-          setVote("present");
-        } else if (absentList.some((u) => u.username === username)) {
-          setVote("absent");
-        } else {
-          setVote(null);
+        if (doc.id === currentUser?.uid) {
+          userVote = data.status;
         }
-      }
+      });
+
+      setPresentCount(present);
+      setAbsentCount(absent);
+      setVote(userVote);
     });
 
     return () => unsubscribe();
-  }, [username]);
+  }, [currentUser]);
 
-  const handleVote = async (option) => {
-  if (!username) return;
-
-  const docSnap = await getDoc(attendanceRef);
-
-  if (!docSnap.exists()) {
-    console.error("Attendance document does not exist!");
+  const handleVote = async (status) => {
+  if (!currentUser || vote) {
+    alert("You have already voted.");
     return;
   }
 
-  const data = docSnap.data();
-
-  const presentList = data.present || [];
-  const absentList = data.absent || [];
-
-  const now = new Date();
-  const timeString = now.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-  // Remove user from both lists
-  const updatedPresent = presentList.filter(
-    (u) => u.username !== username
+  const voteRef = doc(
+    db,
+    "attendance",
+    "expedition1",
+    "votes",
+    currentUser.uid
   );
 
-  const updatedAbsent = absentList.filter(
-    (u) => u.username !== username
-  );
-
-  const voteObject = {
-    username,
-    time: timeString,
-  };
-
-  if (option === "present") {
-    updatedPresent.push(voteObject);
-  } else {
-    updatedAbsent.push(voteObject);
-  }
-
-  await updateDoc(attendanceRef, {
-    present: updatedPresent,
-    absent: updatedAbsent,
+  await setDoc(voteRef, {
+    status,
+    username,              // 🔥 ADD THIS
+    timestamp: serverTimestamp()
   });
 };
 
-  const totalVotes = votes.present.length + votes.absent.length;
-
-  const getPercentage = (count) => {
-    if (totalVotes === 0) return 0;
-    return ((count / totalVotes) * 100).toFixed(0);
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#0B1D2A] via-black to-[#0B1D2A] flex items-center justify-center p-6">
-      <div className="w-full max-w-md bg-[#0F1C2E]/90 backdrop-blur-md 
-                      border border-white/10 rounded-3xl p-8 shadow-2xl text-white">
+    <div className="min-h-screen flex items-center justify-center bg-black text-white">
+      <div className="bg-gray-900 p-8 rounded-2xl w-96">
 
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-emerald-300">
-            Attendance Poll
-          </h2>
-          <button
-            onClick={() => navigate("/home")}
-            className="text-sm bg-emerald-600 px-4 py-1 rounded-lg hover:bg-emerald-500 transition"
-          >
-            Back
-          </button>
+        <div className="flex justify-between mb-6">
+          <h2 className="text-xl font-bold">Attendance Poll</h2>
+          <button onClick={() => navigate("/home")}>Back</button>
         </div>
 
-        <p className="text-sm mb-6 text-cyan-200">
-          Are you attending today’s expedition?
-        </p>
+        {!vote ? (
+  <>
+    <div
+      onClick={() => handleVote("present")}
+      className="p-4 mb-4 rounded-xl border border-green-400/30 cursor-pointer"
+    >
+      Present ({presentCount})
+    </div>
 
-        {/* PRESENT */}
-<div
-  onClick={() => handleVote("present")}
-  className={`cursor-pointer rounded-xl border p-4 mb-6 transition
-    ${vote === "present"
-      ? "border-emerald-400 bg-emerald-500/10"
-      : "border-emerald-400/30 hover:bg-white/5"}
-  `}
->
-  <div className="flex justify-between items-center">
-    <span className="font-semibold">
-      Present ({votes.present.length})
-    </span>
+    <div
+      onClick={() => handleVote("absent")}
+      className="p-4 rounded-xl border border-red-400/30 cursor-pointer"
+    >
+      Absent ({absentCount})
+    </div>
+  </>
+) : (
+  <div className="p-4 rounded-xl border border-blue-400 bg-blue-500/10 text-center">
+    You marked yourself as <strong className="capitalize">{vote}</strong>
   </div>
-
-  <div className="mt-4 text-xs space-y-2">
-    {votes.present.map((user, i) => (
-      <div key={i} className="flex justify-between">
-        <span>• {user.username}</span>
-        <span className="text-gray-400">{user.time}</span>
-      </div>
-    ))}
-  </div>
-</div>
-
-        {/* ABSENT */}
-<div
-  onClick={() => handleVote("absent")}
-  className={`cursor-pointer rounded-xl border p-4 transition
-    ${vote === "absent"
-      ? "border-red-400 bg-red-500/10"
-      : "border-red-400/30 hover:bg-white/5"}
-  `}
->
-  <div className="flex justify-between items-center">
-    <span className="font-semibold">
-      Absent ({votes.absent.length})
-    </span>
-  </div>
-
-  <div className="mt-4 text-xs space-y-2">
-    {votes.absent.map((user, i) => (
-      <div key={i} className="flex justify-between">
-        <span>• {user.username}</span>
-        <span className="text-gray-400">{user.time}</span>
-      </div>
-    ))}
-  </div>
-</div>
+)}
 
       </div>
     </div>
