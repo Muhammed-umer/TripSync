@@ -204,7 +204,8 @@ const SupportChat = () => {
           ) {
             bottomRef.current?.scrollIntoView({ behavior: "smooth" });
           } else {
-            setUnreadCount((prev) => prev + 1);
+            //setUnreadCount((prev) => prev + 1);
+             setUnreadCount(newLength - previousLength);
           }
         }
 
