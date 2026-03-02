@@ -2,6 +2,11 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 
+import Admin from "./pages/Admin";
+import AdminAttendance from "./pages/AdminAttendance";
+import AdminPresent from "./pages/AdminPresent";
+import AdminAbsent from "./pages/AdminAbsent";
+
 import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
@@ -72,6 +77,11 @@ function App() {
       <Route path="*" element={<Navigate to="/" replace />} />
 
       <Route path="/attendance" element={<Attendance />} />
+
+      <Route path="/admin" element={<Admin />} />
+<Route path="/admin/attendance" element={<AdminAttendance />} />
+<Route path="/admin/attendance/present" element={<AdminPresent />} />
+<Route path="/admin/attendance/absent" element={<AdminAbsent />} />
 
     </Routes>
   );

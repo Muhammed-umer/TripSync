@@ -262,37 +262,48 @@ const SupportChat = () => {
   };
 
   const handleDeleteForEveryone = async () => {
-    if (!menuMessage) return;
-    try {
-      await updateDoc(doc(db, "support_messages", menuMessage.id), {
-        text: "This message was deleted",
-        isDeleted: true,
-      });
-      setShowMenu(false);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  if (!menuMessage) return;
+
+  try {
+    await updateDoc(doc(db, "support_messages", menuMessage.id), {
+      text: "This message was deleted",
+      isDeleted: true,
+      pinned: false, // 🔥 force unpin
+    });
+
+    setShowMenu(false);
+  } catch (err) {
+    console.error(err);
+  }
+};
 
   const handlePin = async () => {
-    if (!menuMessage) return;
-    try {
-      // Unpin others first if you want only one pinned message, or just pin this one
-      // For now, assuming single pin logic, we could unpin all others or just set this one true
-      // The requirement says "Pin Function", simplest is setting pinned: true
-      // To strictly follow "one pinned message", we should query for existing pinned and unpin it, but let's stick to the prompt's request.
+  if (!menuMessage || menuMessage.isDeleted) return;
 
-      // However, usually only one message is pinned. Let's unpin previous if exists locally for better UI,
-      // but ideally we should use a batch or transaction to ensure one pin.
-      // For this step, simply updating the doc:
-      await updateDoc(doc(db, "support_messages", menuMessage.id), {
-        pinned: true,
-      });
-      setShowMenu(false);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  try {
+    await updateDoc(doc(db, "support_messages", menuMessage.id), {
+      pinned: true,
+    });
+
+    setShowMenu(false);
+  } catch (err) {
+    console.error(err);
+  }
+};
+
+  const handleUnpin = async () => {
+  if (!menuMessage) return;
+
+  try {
+    await updateDoc(doc(db, "support_messages", menuMessage.id), {
+      pinned: false,
+    });
+
+    setShowMenu(false);
+  } catch (err) {
+    console.error(err);
+  }
+};
 
   const handleEmojiClick = (emojiData) => {
     setInput((prev) => prev + emojiData.emoji);
@@ -345,9 +356,9 @@ const SupportChat = () => {
     const RELEASE_THRESHOLD = 120; // real finger movement
     const rawSwipe = swipeOffset / 0.35;
     // reverse resistance to estimate original distance
-    if (Math.abs(rawSwipe) > RELEASE_THRESHOLD) {
-      setReplyTo(msg);
-    }
+    if (Math.abs(rawSwipe) > RELEASE_THRESHOLD && !msg.isDeleted) {
+  setReplyTo(msg);
+}
 
     setSwipeOffset(0);
     setSwipingId(null);
@@ -436,22 +447,37 @@ const SupportChat = () => {
                 </p>
               </div>
             </div>
-              {pinnedMessage && (
-          <div
-            onClick={() => {
-              const el = document.getElementById(
-                `msg-${pinnedMessage.id}`,
-              );
-              el?.scrollIntoView({ behavior: "smooth", block: "center" });
-            }}
-            className="flex items-center gap-2 bg-yellow-100 text-yellow-800 px-4 py-2 text-sm border-b"
-          >
-            <Pin size={16} />
-            <span className="truncate flex-1 font-medium">
-              {pinnedMessage.text}
-            </span>
-          </div>
-        )}
+
+
+              {pinnedMessage && !pinnedMessage.isDeleted && (
+  <div className="flex items-center justify-between bg-yellow-100 text-yellow-900 px-4 py-2 text-sm border-b">
+    <div
+      onClick={() => {
+        const el = document.getElementById(`msg-${pinnedMessage.id}`);
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }}
+      className="flex items-center gap-2 cursor-pointer truncate"
+    >
+      <Pin size={16} />
+      <span className="truncate font-medium">
+        {pinnedMessage.text}
+      </span>
+    </div>
+
+    <button
+      onClick={async (e) => {
+        e.stopPropagation();
+        await updateDoc(
+          doc(db, "support_messages", pinnedMessage.id),
+          { pinned: false }
+        );
+      }}
+      className="text-xs font-semibold text-red-500"
+    >
+      Unpin
+    </button>
+  </div>
+)}
 
             {!isDesktop && (
               <button
@@ -524,19 +550,41 @@ const SupportChat = () => {
             </div>
           )}
   {pinnedMessage && (
-        <div
-          onClick={() => {
-            const el = document.getElementById(`msg-${pinnedMessage.id}`);
-            el?.scrollIntoView({ behavior: "smooth", block: "center" });
-          }}
-          className="flex items-center gap-2 bg-yellow-100 text-yellow-800 px-4 py-2 text-sm border-b"
-        >
-          <Pin size={16} />
-          <span className="truncate flex-1 font-medium">
-            {pinnedMessage.text}
-          </span>
-        </div>
-      )}
+  <div className="flex items-center justify-between gap-3 bg-yellow-100 text-yellow-900 px-4 py-2 text-sm border-b shadow-sm">
+    
+    {/* Click to Scroll */}
+    <div
+      onClick={() => {
+        const el = document.getElementById(`msg-${pinnedMessage.id}`);
+        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }}
+      className="flex items-center gap-2 cursor-pointer flex-1 truncate"
+    >
+      <Pin size={16} />
+      <span className="truncate font-medium">
+        {pinnedMessage.text}
+      </span>
+    </div>
+
+    {/* Unpin Button */}
+    <button
+      onClick={async (e) => {
+        e.stopPropagation();
+        try {
+          await updateDoc(
+            doc(db, "support_messages", pinnedMessage.id),
+            { pinned: false }
+          );
+        } catch (err) {
+          console.error(err);
+        }
+      }}
+      className="text-xs font-semibold text-red-500 hover:text-red-700 transition"
+    >
+      Unpin
+    </button>
+  </div>
+)}
           {/* Messages */}
           <div
             ref={messagesRef}
@@ -639,9 +687,9 @@ const SupportChat = () => {
                       </div>
                     )}
                     {/* Desktop Reply Button */}
-                    {isDesktop && (
-                      <button
-                        onClick={() => setReplyTo(msg)}
+                    {isDesktop && !msg.isDeleted && (
+  <button
+    onClick={() => setReplyTo(msg)}
                         className={`absolute top-1/2 -translate-y-1/2 ${
                           isMe ? "-left-6" : "-right-6"
                         } text-black hover:scale-110 transition`}
@@ -673,7 +721,7 @@ const SupportChat = () => {
                     <div className="max-w-full">
                       <div className="flex flex-wrap items-end gap-x-1 justify-end">
                         <span className="break-words whitespace-pre-wrap mr-auto">
-                          {msg.text}
+                          {msg.isDeleted ? "This message was deleted" : msg.text}
                         </span>
 
                         <span className="text-[10px] opacity-60 whitespace-nowrap mb-0.5">
@@ -782,58 +830,66 @@ const SupportChat = () => {
 
       {/* Menu */}
       {showMenu && menuMessage && (
-        <div
-          className="chat-menu fixed z-[10000] bg-zinc-900 text-white rounded-xl shadow-2xl w-56 py-2 border border-zinc-700"
-          style={{
-            top: menuPosition.y,
-            left: menuPosition.x,
+  <div
+    className="chat-menu fixed z-[10000] bg-zinc-900 text-white rounded-xl shadow-2xl w-56 py-2 border border-zinc-700"
+    style={{
+      top: menuPosition.y,
+      left: menuPosition.x,
+    }}
+    onClick={(e) => e.stopPropagation()}
+  >
+    {/* If message is NOT deleted */}
+    {!menuMessage.isDeleted && (
+      <>
+        <MenuItem
+          icon={<Info size={18} />}
+          label="Message info"
+          onClick={() => {
+            setSelectedMessage(menuMessage);
+            setShowInfo(true);
+            setShowMenu(false);
           }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Message Info */}
+        />
+
+        {menuMessage.senderId === currentUser?.uid && (
           <MenuItem
-            icon={<Info size={18} />}
-            label="Message info"
+            icon={<Pencil size={18} />}
+            label="Edit"
             onClick={() => {
-              setSelectedMessage(menuMessage);
-              setShowInfo(true);
+              setInput(menuMessage.text);
               setShowMenu(false);
             }}
           />
+        )}
 
-          {/* Edit - only if it's my message */}
-          {menuMessage.senderId === currentUser?.uid && (
-            <MenuItem
-              icon={<Pencil size={18} />}
-              label="Edit"
-              onClick={() => {
-                setInput(menuMessage.text);
-                setShowMenu(false);
-              }}
-            />
-          )}
+        <MenuItem
+          icon={<Pin size={18} />}
+          label={menuMessage?.pinned ? "Unpin" : "Pin"}
+          onClick={
+            menuMessage?.pinned ? handleUnpin : handlePin
+          }
+        />
 
-          {/* Pin */}
-          <MenuItem icon={<Pin size={18} />} label="Pin" onClick={handlePin} />
-
-          {/* Delete - only if it's my message */}
+        {menuMessage.senderId === currentUser?.uid && (
           <MenuItem
             icon={<Trash2 size={18} />}
-            label="Delete for me"
+            label="Delete for everyone"
             danger
-            onClick={handleDeleteForMe}
+            onClick={handleDeleteForEveryone}
           />
+        )}
+      </>
+    )}
 
-          {menuMessage.senderId === currentUser?.uid && (
-            <MenuItem
-              icon={<Trash2 size={18} />}
-              label="Delete for everyone"
-              danger
-              onClick={handleDeleteForEveryone}
-            />
-          )}
-        </div>
-      )}
+    {/* Always available */}
+    <MenuItem
+      icon={<Trash2 size={18} />}
+      label="Delete for me"
+      danger
+      onClick={handleDeleteForMe}
+    />
+  </div>
+)}
     </>
   );
 };
