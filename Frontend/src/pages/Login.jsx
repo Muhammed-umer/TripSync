@@ -1,5 +1,4 @@
 // ./src/pages/Login.jsx
-
 import keralaBg from "../assets/kerala.jpg";
 import { useState } from "react";
 import {
@@ -13,7 +12,7 @@ import { useNavigate } from "react-router-dom";
 export default function Login() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const [toast, setToast] = useState(null); // { message, type }
+  const [toast, setToast] = useState(null);
 
   const navigate = useNavigate();
 
@@ -96,7 +95,7 @@ export default function Login() {
       {/* Overlay */}
       <div className="absolute inset-0 bg-gradient-to-br from-black/70 via-emerald-950/60 to-black/80"></div>
 
-      {/* Toast (Top Right) */}
+      {/* Toast */}
       {toast && (
         <div
           className={`fixed top-6 right-6 z-50 px-6 py-3 rounded-xl shadow-2xl backdrop-blur-lg border transition-all duration-300
@@ -113,14 +112,15 @@ export default function Login() {
       {/* Login Card */}
       <form
         onSubmit={handleLogin}
-        className="relative z-10 w-full max-w-md p-10 rounded-3xl
+        className="relative z-10 
+        w-[85%] sm:w-[400px] lg:w-[430px]
+        p-10 rounded-3xl
         backdrop-blur-xl
         bg-black/40
         border border-emerald-800/40
         shadow-2xl shadow-black/60
         text-white"
       >
-        {/* Updated Title Color */}
         <h2 className="text-4xl font-extrabold text-center mb-2 tracking-wide text-emerald-300 drop-shadow-lg">
           TripSync Kerala
         </h2>
