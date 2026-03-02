@@ -1,168 +1,98 @@
 // ./src/pages/Home.jsx
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { db } from "../firebase/firebase";
+import { doc, getDoc } from "firebase/firestore";
 import vagamonNight from "../assets/vagamon-night.jpg";
 import SupportChat from "./SupportChat";
 
 const Home = () => {
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const [profileData, setProfileData] = useState({ photoURL: "" });
 
-  const handleEmergency = () => {
-    alert("Emergency triggered!");
-  };
+  useEffect(() => {
+    const fetchUser = async () => {
+      if (currentUser) {
+        const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+        if (userDoc.exists()) setProfileData(userDoc.data());
+      }
+    };
+    fetchUser();
+  }, [currentUser]);
+
+  const handleEmergency = () => { alert("Emergency triggered!"); };
 
   return (
-    <div
-      className="relative min-h-screen bg-cover bg-center"
-      style={{ backgroundImage: `url(${vagamonNight})` }}
-    >
-      {/* Night Overlay */}
+    <div className="relative min-h-screen bg-cover bg-center overflow-x-hidden" style={{ backgroundImage: `url(${vagamonNight})` }}>
       <div className="absolute inset-0 bg-gradient-to-br from-black/60 via-[#0B1D2A]/50 to-black/70"></div>
-
-      {/* Controlled Width Container */}
-      <div className="relative z-10 
-                      w-[92%] sm:w-[90%] lg:w-[85%] 
-                      max-w-6xl 
-                      mx-auto 
-                      px-4 sm:px-6 lg:px-0 
-                      py-16">
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-start">
-
-          {/* ================= LEFT MAIN TOUR CARD ================= */}
-          <div className="bg-[#0F1C2E]/80 backdrop-blur-md 
-                          border border-white/10 
-                          rounded-[3rem] 
-                          overflow-hidden 
-                          shadow-[0_40px_100px_rgba(0,0,0,0.8)] 
-                          w-full 
-                          max-w-lg 
-                          mx-auto">
-
-            {/* HEADER */}
-            <div className="bg-gradient-to-r from-[#1B4332] to-[#0F3460] 
-                            px-8 py-8 
-                            flex justify-between items-center">
-
+      
+      <div className="relative z-10 w-[92%] max-w-6xl mx-auto py-10 sm:py-16">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-start">
+          
+          {/* Dashboard Card */}
+          <div className="bg-[#0F1C2E]/80 backdrop-blur-md border border-white/10 rounded-[3rem] overflow-hidden shadow-2xl w-full max-w-lg mx-auto">
+            
+            {/* Header with Profile Pic */}
+            <div className="bg-gradient-to-r from-[#1B4332] to-[#0F3460] px-8 py-6 flex justify-between items-center">
               <div>
-                <h1 className="text-2xl font-black text-cyan-200 drop-shadow-md">
-                  TripSync
-                </h1>
-                <p className="text-cyan-100 text-xs font-bold uppercase tracking-widest">
-                  College Expedition '26
-                </p>
+                <h1 className="text-2xl font-black text-cyan-200">TripSync</h1>
+                <p className="text-cyan-100 text-[10px] font-bold uppercase tracking-widest">College Expedition '26</p>
               </div>
-
               <div
                 onClick={() => navigate("/profile")}
-                className="w-12 h-12 bg-gradient-to-br 
-                           from-cyan-400 to-teal-300 
-                           rounded-xl 
-                           shadow-lg 
-                           flex items-center 
-                           justify-center 
-                           cursor-pointer 
-                           hover:scale-110 
-                           transition 
-                           text-black font-bold"
+                className="w-12 h-12 rounded-xl border-2 border-cyan-400 overflow-hidden cursor-pointer hover:scale-110 transition shadow-lg"
               >
-                👤
+                {profileData.photoURL ? (
+                  <img src={profileData.photoURL} alt="User" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-cyan-400 flex items-center justify-center font-bold">👤</div>
+                )}
               </div>
             </div>
 
-            {/* CONTENT */}
-            <div className="p-10 space-y-10">
-
-              {/* MAP PREVIEW */}
-              <div
-                onClick={() => navigate("/navigation")}
-                className="w-full 
-                           rounded-[2rem] 
-                           overflow-hidden 
-                           cursor-pointer 
-                           shadow-xl 
-                           border border-white/10"
+            <div className="p-8 space-y-8">
+              {/* Map Preview Card - Fixed Sizing */}
+              <div 
+                onClick={() => navigate("/navigation")} 
+                className="w-full h-48 bg-black rounded-[2rem] overflow-hidden cursor-pointer border border-white/10 shadow-xl flex items-center justify-center hover:opacity-90 transition"
               >
-                <div className="h-48 bg-black 
-                                flex items-center justify-center 
-                                text-white text-lg font-bold">
-                  Open Live Navigation Map
-                </div>
+                <span className="text-white text-lg font-bold">Open Live Navigation Map</span>
               </div>
 
-              {/* ATTENDANCE + EMERGENCY */}
-<div className="grid grid-cols-2 gap-6">
+              {/* Action Buttons - Fixed Sizing */}
+              <div className="grid grid-cols-2 gap-6">
+                <button 
+                  onClick={() => navigate("/attendance")} 
+                  className="h-36 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-[2rem] flex flex-col items-center justify-center text-white shadow-xl hover:scale-[1.03] transition"
+                >
+                  <div className="text-3xl mb-2">📝</div>
+                  <span className="font-bold text-sm">Attendance</span>
+                </button>
+                
+                <button 
+                  onClick={handleEmergency} 
+                  className="h-36 bg-gradient-to-r from-red-600 to-red-500 rounded-[2rem] flex flex-col items-center justify-center text-white shadow-xl hover:scale-[1.03] transition"
+                >
+                  <div className="text-3xl mb-2 animate-pulse">🚨</div>
+                  <span className="font-bold text-sm">Emergency</span>
+                </button>
+              </div>
 
-  {/* Attendance Card */}
-  <div
-  onClick={() => navigate("/attendance")}
-  className="h-40 bg-gradient-to-br from-indigo-500 to-purple-600
-             rounded-[2rem] shadow-2xl 
-             flex flex-col items-center justify-center
-             text-white cursor-pointer 
-             hover:scale-[1.03] transition"
->
-    <div className="text-3xl mb-2">📝</div>
-    <span className="font-bold text-sm tracking-wide">
-      Attendance
-    </span>
-  </div>
-
-  {/* Emergency Card */}
-  <button
-    onClick={handleEmergency}
-    className="h-40 bg-gradient-to-r from-red-600 to-red-500 
-               rounded-[2rem] shadow-2xl 
-               flex flex-col items-center justify-center
-               text-white hover:scale-[1.03] transition"
-  >
-    <div className="text-3xl mb-2 animate-pulse">🚨</div>
-    <span className="font-bold text-sm tracking-wide">
-      Emergency Help
-    </span>
-  </button>
-
-</div>
-              {/* CURRENT EXPEDITION */}
-              <div className="w-full 
-                              bg-gradient-to-r from-[#1E3A5F] to-[#0F3460] 
-                              rounded-[2rem] 
-                              p-8 
-                              text-white 
-                              shadow-xl 
-                              border border-white/10">
-
-                <div className="mb-4">
-                  <h3 className="font-black text-lg text-cyan-200">
-                    Current Expedition
-                  </h3>
-                  <p className="text-cyan-100 text-xs font-bold uppercase mt-1">
-                    Destination: Vagamon Hills
-                  </p>
+              {/* Expedition Progress */}
+              <div className="w-full bg-gradient-to-r from-[#1E3A5F] to-[#0F3460] rounded-[2rem] p-6 text-white border border-white/10 shadow-lg">
+                <h3 className="font-black text-md text-cyan-200 mb-4">Current Expedition</h3>
+                <div className="w-full h-2 bg-white/10 rounded-full">
+                  <div className="h-full bg-emerald-400 rounded-full w-3/4"></div>
                 </div>
-
-                <div className="w-full h-[1px] bg-cyan-300/30 mb-6 rounded-full"></div>
-
-                <div className="space-y-3">
-                  <div className="flex justify-between text-sm font-semibold text-cyan-100">
-                    <span>Distance Progress</span>
-                    <span>75%</span>
-                  </div>
-
-                  <div className="w-full h-3 bg-white/10 rounded-full">
-                    <div className="h-full bg-emerald-400 rounded-full w-3/4"></div>
-                  </div>
-                </div>
-
               </div>
             </div>
           </div>
 
-          {/* CHAT SECTION */}
-          <div className="flex justify-center lg:justify-end">
-            <div className="w-full max-w-md">
-              <SupportChat />
-            </div>
+          {/* Chat Section */}
+          <div className="w-full max-w-md mx-auto lg:mx-0">
+            <SupportChat />
           </div>
 
         </div>

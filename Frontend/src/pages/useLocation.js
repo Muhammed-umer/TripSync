@@ -1,22 +1,34 @@
 // ./src/pages/useLocation.js
 import { useState, useEffect, useRef } from "react";
+import { db } from "../firebase/firebase";
+import { doc, setDoc } from "firebase/firestore";
+import { useAuth } from "../context/AuthContext";
 
 export const useLocation = () => {
   const [location, setLocation] = useState(null);
+  const { currentUser } = useAuth();
   const watcherRef = useRef(null);
 
   useEffect(() => {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation || !currentUser) return;
 
     watcherRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
+      async (pos) => {
         const { latitude, longitude } = pos.coords;
-        setLocation({ lat: latitude, lng: longitude });
+        const newCoords = { lat: latitude, lng: longitude, lastSeen: Date.now() };
+        setLocation(newCoords);
+
+        // Sync to Firestore so others can see you
+        try {
+          await setDoc(doc(db, "users_locations", currentUser.uid), newCoords, { merge: true });
+        } catch (error) {
+          console.error("Location sync failed:", error);
+        }
       },
       (err) => console.log(err),
       {
         enableHighAccuracy: true,
-        maximumAge: 0,     // FAST MODE
+        maximumAge: 0,
         timeout: 5000,
       }
     );
@@ -26,7 +38,7 @@ export const useLocation = () => {
         navigator.geolocation.clearWatch(watcherRef.current);
       }
     };
-  }, []);
+  }, [currentUser]);
 
   return location;
 };
