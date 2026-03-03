@@ -6,6 +6,7 @@ import { db } from "../firebase/firebase";
 import { doc, getDoc, collection, addDoc, onSnapshot, query, where } from "firebase/firestore";
 import vagamonNight from "../assets/vagamon-night.jpg";
 import SupportChat from "./SupportChat";
+import EmergencyPopup from "../components/EmergencyPopup";
 
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const R = 6371e3; // metres
@@ -26,6 +27,9 @@ const Home = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [profileData, setProfileData] = useState({ photoURL: "" });
+  const [emergencyPopup, setEmergencyPopup] = useState({ isOpen: false, message: "" });
+
+  const showEmergencyPopup = (msg) => setEmergencyPopup({ isOpen: true, message: msg });
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -62,16 +66,16 @@ const Home = () => {
                     ? (distance / 1000).toFixed(1) + " km"
                     : Math.round(distance) + " meters";
 
-                  alert(`EMERGENCY: ${alertData.senderName} needs help! They are ${distStr} away from you.`);
+                  showEmergencyPopup(`EMERGENCY: ${alertData.senderName} needs help! They are ${distStr} away from you.`);
                 },
                 (error) => {
                   console.error("Location error for distance calcs: ", error);
-                  alert(`EMERGENCY: ${alertData.senderName} needs help!`);
+                  showEmergencyPopup(`EMERGENCY: ${alertData.senderName} needs help!`);
                 },
                 { enableHighAccuracy: true }
               );
             } else {
-              alert(`EMERGENCY: ${alertData.senderName} needs help!`);
+              showEmergencyPopup(`EMERGENCY: ${alertData.senderName} needs help!`);
             }
           }
         }
@@ -83,30 +87,49 @@ const Home = () => {
 
   const handleEmergency = () => {
     if (!navigator.geolocation) {
-      alert("Geolocation is not supported by your browser.");
+      showEmergencyPopup("Geolocation is not supported by your browser.");
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
+          // Fetch the latest username directly from Firestore
+          let senderName = "Unknown";
+          if (currentUser) {
+            const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+            if (userDoc.exists() && userDoc.data().name) {
+              senderName = userDoc.data().name;
+            } else if (userDoc.exists() && userDoc.data().username) {
+              senderName = userDoc.data().username;
+            } else if (profileData.name || profileData.displayName) {
+              senderName = profileData.name || profileData.displayName;
+            } else if (currentUser.displayName) {
+              senderName = currentUser.displayName;
+            }
+          }
+
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+
           await addDoc(collection(db, "emergency_alerts"), {
             senderId: currentUser.uid,
-            senderName: profileData.name || profileData.displayName || currentUser?.displayName || "Unknown",
+            senderName: senderName,
             senderPhoto: profileData.photoURL || currentUser?.photoURL || "",
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
+            latitude: lat,
+            longitude: lng,
             timestamp: Date.now()
           });
-          alert("Emergency alert sent successfully!");
+
+          showEmergencyPopup(`🚨 Emergency triggered by ${senderName}! Coordinates: [${lat}, ${lng}]`);
         } catch (error) {
           console.error("Error sending alert: ", error);
-          alert("Failed to send emergency alert.");
+          showEmergencyPopup("Failed to send emergency alert.");
         }
       },
       (error) => {
         console.error("Error getting location: ", error);
-        alert("Failed to get location for emergency alert.");
+        showEmergencyPopup("Failed to get location for emergency alert.");
       },
       { enableHighAccuracy: true }
     );
@@ -114,6 +137,11 @@ const Home = () => {
 
   return (
     <div className="relative min-h-screen bg-cover bg-center overflow-x-hidden" style={{ backgroundImage: `url(${vagamonNight})` }}>
+      <EmergencyPopup 
+        isOpen={emergencyPopup.isOpen} 
+        message={emergencyPopup.message} 
+        onClose={() => setEmergencyPopup({ ...emergencyPopup, isOpen: false })} 
+      />
       <div className="absolute inset-0 bg-gradient-to-br from-black/60 via-[#0B1D2A]/50 to-black/70"></div>
 
       <div className="relative z-10 w-[92%] max-w-6xl mx-auto py-10 sm:py-16">

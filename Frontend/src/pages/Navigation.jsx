@@ -1,48 +1,104 @@
 // ./src/pages/Navigation.jsx
 import React, { useEffect, useState, useRef } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap, LayersControl, ZoomControl, LayerGroup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents, LayersControl, ZoomControl, LayerGroup } from "react-leaflet";
 import { useLocation } from "./useLocation";
 import { db } from "../firebase/firebase";
-import { collection, onSnapshot, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, getDocs, query, where } from "firebase/firestore";
 import { useAuth } from "../context/AuthContext";
+import EmergencyPopup from "../components/EmergencyPopup";
 import "leaflet/dist/leaflet.css";
-import L from "leaflet";
-import "leaflet-routing-machine"; 
+import * as L from "leaflet";
+import "leaflet-routing-machine";
 import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
 import MarkerClusterGroup from 'react-leaflet-cluster';
-import { ArrowLeft, Target, User, Navigation as NavIcon, Mountain, Users, X } from "lucide-react";
+import { Target, User, Navigation as NavIcon, Mountain, Users, X, LocateFixed, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import SearchField from "./SearchField";
 
 const getDistance = (lat1, lon1, lat2, lon2) => {
-  const R = 6371e3; 
-  const p1 = (lat1 * Math.PI) / 180;
-  const p2 = (lat2 * Math.PI) / 180;
-  const dp = ((lat2 - lat1) * Math.PI) / 180;
-  const dl = ((lon2 - lon1) * Math.PI) / 180;
-  const a = Math.sin(dp / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
-  return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  const R = 6371e3;
+  const p1 = lat1 * Math.PI / 180;
+  const p2 = lat2 * Math.PI / 180;
+  const dp = (lat2 - lat1) * Math.PI / 180;
+  const dl = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dp / 2) * Math.sin(dp / 2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 };
 
-function MapEvents({ onClose }) {
-  const map = useMap();
-  useEffect(() => {
-    map.on('click', onClose);
-    return () => map.off('click', onClose);
-  }, [map, onClose]);
+const MapEvents = ({ onClose }) => {
+  useMapEvents({
+    click() {
+      onClose();
+    }
+  });
   return null;
-}
+};
+
+// Icons for tracking
+const createIcon = (color) => L.divIcon({
+  className: "",
+  html: `< svg width = "35" height = "35" viewBox = "0 0 24 24" fill = "${color}" > <path d="M12 2C8 2 5 5 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-4-3-7-7-7z" /></svg > `,
+  iconSize: [35, 35],
+  iconAnchor: [17, 35]
+});
 
 export default function Navigation() {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
-  const myLocation = useLocation(); 
+  const myLocation = useLocation();
   const [allUsers, setAllUsers] = useState([]);
   const [usersInfo, setUsersInfo] = useState({});
   const [touristSpots, setTouristSpots] = useState([]);
-  const [activeTab, setActiveTab] = useState(null); 
+  const [activeTab, setActiveTab] = useState(null);
   const mapRef = useRef(null);
   const routingControlRef = useRef(null);
+
+  const [emergencyPopup, setEmergencyPopup] = useState({ isOpen: false, message: "" });
+  const showEmergencyPopup = (msg) => setEmergencyPopup({ isOpen: true, message: msg });
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const tenMinsAgo = Date.now() - 10 * 60 * 1000;
+    const q = query(
+      collection(db, "emergency_alerts"),
+      where("timestamp", ">=", tenMinsAgo)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === "added") {
+          const alertData = change.doc.data();
+          if (alertData.senderId !== currentUser.uid) {
+            if (navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(
+                (position) => {
+                  const myLat = position.coords.latitude;
+                  const myLon = position.coords.longitude;
+                  const distance = getDistance(myLat, myLon, alertData.latitude, alertData.longitude);
+
+                  let distStr = distance >= 1000
+                    ? (distance / 1000).toFixed(1) + " km"
+                    : Math.round(distance) + " meters";
+
+                  showEmergencyPopup(`EMERGENCY: ${alertData.senderName} needs help! They are ${distStr} away from you.`);
+                },
+                (error) => {
+                  console.error("Location error for distance calcs: ", error);
+                  showEmergencyPopup(`EMERGENCY: ${alertData.senderName} needs help!`);
+                },
+                { enableHighAccuracy: true }
+              );
+            } else {
+              showEmergencyPopup(`EMERGENCY: ${alertData.senderName} needs help!`);
+            }
+          }
+        }
+      });
+    });
+
+    return () => unsubscribe();
+  }, [currentUser]);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -60,12 +116,12 @@ export default function Navigation() {
 
   const fetchNearbySpots = async () => {
     if (!myLocation) return;
-    const query = `[out:json];(node["tourism"~"attraction|viewpoint"](around:50000,${myLocation.lat},${myLocation.lng});node["natural"~"waterfall|peak"](around:50000,${myLocation.lat},${myLocation.lng}););out;`;
+    const query = `[out:json]; (node["tourism"~"attraction|viewpoint"](around: 50000, ${myLocation.lat}, ${myLocation.lng}); node["natural"~"waterfall|peak"](around: 50000, ${myLocation.lat}, ${myLocation.lng});); out; `;
     try {
       const response = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
       const data = await response.json();
       setTouristSpots(data.elements);
-      setActiveTab('spots'); 
+      setActiveTab('spots');
     } catch (err) { alert("Error reaching search service."); }
   };
 
@@ -79,7 +135,7 @@ export default function Navigation() {
       show: false,
       addWaypoints: false,
     }).addTo(mapRef.current);
-    setActiveTab(null); 
+    setActiveTab(null);
   };
 
   // 🔥 CUSTOM CLUSTER ICON: Displays only the count in a circle
@@ -112,24 +168,29 @@ export default function Navigation() {
   };
 
   return (
-    <div className="relative w-screen h-[100dvh] overflow-hidden bg-gray-100 font-sans">
-      
-      <button 
-        onClick={() => navigate("/home")} 
-        className="absolute top-5 left-5 z-[1001] bg-white p-3 rounded-full shadow-xl"
+    <div className="relative w-screen h-[100dvh] overflow-hidden">
+      <EmergencyPopup
+        isOpen={emergencyPopup.isOpen}
+        message={emergencyPopup.message}
+        onClose={() => setEmergencyPopup({ ...emergencyPopup, isOpen: false })}
+      />
+      {/* Back Button - Top Left */}
+      <button
+        onClick={() => navigate("/home")}
+        className="absolute top-5 left-5 z-[1001] bg-white p-3 rounded-full shadow-xl hover:scale-105 transition"
       >
-        <ArrowLeft size={24} className="text-gray-700" />
+        <ArrowLeft size={24} />
       </button>
 
       <div className="absolute top-20 left-5 z-[1001] flex flex-col gap-3">
-        <button 
+        <button
           onClick={() => setActiveTab(activeTab === 'friends' ? null : 'friends')}
           className={`p-4 rounded-full shadow-2xl transition border-2 ${activeTab === 'friends' ? 'bg-indigo-600 text-white border-indigo-400' : 'bg-white text-indigo-600 border-white'}`}
         >
           <Users size={24} />
         </button>
 
-        <button 
+        <button
           onClick={fetchNearbySpots}
           className={`p-4 rounded-full shadow-2xl transition border-2 ${activeTab === 'spots' ? 'bg-emerald-600 text-white border-emerald-400' : 'bg-white text-emerald-600 border-white'}`}
         >
@@ -137,71 +198,42 @@ export default function Navigation() {
         </button>
       </div>
 
-      <MapContainer 
+      <MapContainer
         ref={mapRef}
-        center={[12.9716, 77.5946]} 
-        zoom={15} 
-        maxZoom={22}
-        zoomControl={false}
-        touchZoom="center"
-        style={{ height: "100%", width: "100%" }}
+        center={myLocation ? [myLocation.lat, myLocation.lng] : [12.9716, 77.5946]}
+        zoom={16}
+        zoomControl={false} // Disable default so we can move it
+        style={{ height: "100%", width: "100%", zIndex: 0 }}
       >
-        <SearchField />
         <MapEvents onClose={() => setActiveTab(null)} />
-        <ZoomControl position="bottomright" />
-        
+        <ZoomControl position="bottomleft" />
+
         <LayersControl position="topright">
-          <LayersControl.BaseLayer checked name="Satellite (Labeled)">
-            <LayerGroup>
-              <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" maxNativeZoom={18} maxZoom={22} />
-              <TileLayer url="https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png" opacity={0.8} />
-            </LayerGroup>
+          <LayersControl.BaseLayer checked name="Satellite View">
+            <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
           </LayersControl.BaseLayer>
           <LayersControl.BaseLayer name="Street Map">
             <TileLayer url="https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png" maxNativeZoom={19} maxZoom={22} />
           </LayersControl.BaseLayer>
         </LayersControl>
 
-        {/* 🔥 CLUSTER SETTINGS: Use custom icon and enable spiderfy */}
-        <MarkerClusterGroup 
-          iconCreateFunction={createClusterCustomIcon}
-          spiderfyOnMaxZoom={true} 
-          showCoverageOnHover={false}
-          maxClusterRadius={50} // Radius for clustering
-          disableClusteringAtZoom={20} // Only show individual profiles at very high zoom
-        >
-          {allUsers.map(user => (
-            <Marker key={user.id} position={[user.lat, user.lng]} icon={createMarkerIcon(user, usersInfo)}>
-               <Popup>
-                  <div className="text-center p-1">
-                    <p className="font-bold">{usersInfo[user.id]?.username}</p>
-                    {myLocation && user.id !== currentUser?.uid && (
-                      <div className="mt-2">
-                        <p className="text-blue-600 text-xs font-bold mb-1">{formatDistanceDisplay(getDistance(myLocation.lat, myLocation.lng, user.lat, user.lng))} away</p>
-                        <button onClick={() => startNavigation(user.lat, user.lng)} className="bg-blue-600 text-white px-3 py-1 rounded-full text-[10px] font-bold">Navigate</button>
-                      </div>
-                    )}
-                  </div>
-               </Popup>
+        {allUsers.map(user => {
+          const isMe = user.id === currentUser?.uid;
+          const borderColor = isMe ? "#3B82F6" : "#EF4444";
+          return (
+            <Marker
+              key={user.id}
+              position={[user.lat, user.lng]}
+              icon={createMarkerIcon(user, usersInfo, borderColor)}
+            >
+              <Popup className="font-semibold text-gray-800">{isMe ? "You" : usersInfo[user.id]?.username || "Classmate"}</Popup>
             </Marker>
-          ))}
-        </MarkerClusterGroup>
-
-        {touristSpots.map((spot, idx) => (
-          <Marker key={idx} position={[spot.lat, spot.lon]} icon={L.divIcon({ html: '📍', className: 'text-2xl' })}>
-            <Popup>
-              <div className="text-center">
-                <p className="font-bold text-xs">{spot.tags.name || "Spot"}</p>
-                <p className="text-emerald-600 font-bold text-[10px]">{formatDistanceDisplay(myLocation ? getDistance(myLocation.lat, myLocation.lng, spot.lat, spot.lon) : 0)} away</p>
-                <button onClick={() => startNavigation(spot.lat, spot.lon)} className="bg-emerald-600 text-white px-2 py-1 rounded text-[10px] mt-1">Navigate</button>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+          );
+        })}
       </MapContainer>
 
-      <button 
-        onClick={() => myLocation && mapRef.current.flyTo([myLocation.lat, myLocation.lng], 18)} 
+      <button
+        onClick={() => myLocation && mapRef.current.flyTo([myLocation.lat, myLocation.lng], 18)}
         className="absolute bottom-8 right-16 z-[1000] bg-white p-4 rounded-full shadow-2xl active:scale-90 transition border-2 border-white"
       >
         <Target size={28} className="text-indigo-600" />
@@ -213,7 +245,7 @@ export default function Navigation() {
             <h3 className="font-black text-gray-800 text-sm uppercase tracking-wider">
               {activeTab === 'friends' ? 'Active Friends' : 'Tourist Spots'}
             </h3>
-            <button onClick={() => setActiveTab(null)}><X size={18} className="text-gray-400"/></button>
+            <button onClick={() => setActiveTab(null)}><X size={18} className="text-gray-400" /></button>
           </div>
           <div className="space-y-3 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
             {activeTab === 'friends' ? (
@@ -244,7 +276,7 @@ export default function Navigation() {
   );
 }
 
-const createMarkerIcon = (user, usersInfo) => {
+const createMarkerIcon = (user, usersInfo, borderColor) => {
   const photo = usersInfo[user.id]?.photoURL;
   return L.divIcon({
     html: `
@@ -252,8 +284,8 @@ const createMarkerIcon = (user, usersInfo) => {
         <div style="background: rgba(0,0,0,0.85); color: white; font-size: 9px; padding: 2px 8px; border-radius: 20px; margin-bottom: 2px; white-space: nowrap; font-weight: 800; border: 1px solid rgba(255,255,255,0.2);">
           ${usersInfo[user.id]?.username || 'User'}
         </div>
-        <div style="width: 46px; height: 46px; border-radius: 50%; border: 3px solid white; overflow: hidden; background: #f0f0f0; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
-          <img src="${photo || 'https://via.placeholder.com/40'}" style="width: 100%; height: 100%; object-fit: cover; display: block;" />
+        <div style="width: 46px; height: 46px; border-radius: 50%; border: 3px solid ${borderColor}; overflow: hidden; background: #f0f0f0; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+          <img src="${photo || 'https://ui-avatars.com/api/?name=User'}" style="width: 100%; height: 100%; object-fit: cover; display: block;" />
         </div>
       </div>`,
     className: 'custom-user-marker',

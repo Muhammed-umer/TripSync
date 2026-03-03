@@ -14,20 +14,38 @@ export const useLocation = () => {
     watcherRef.current = navigator.geolocation.watchPosition(
       async (pos) => {
         const { latitude, longitude } = pos.coords;
-        const newCoords = { lat: latitude, lng: longitude, lastSeen: Date.now() };
+
+        const newCoords = {
+          lat: latitude,
+          lng: longitude,
+          lastSeen: Date.now(),
+        };
+
         setLocation(newCoords);
 
         try {
-          await setDoc(doc(db, "users_locations", currentUser.uid), newCoords, { merge: true });
+          await setDoc(
+            doc(db, "users_locations", currentUser.uid),
+            newCoords,
+            { merge: true }
+          );
         } catch (error) {
           console.error("Sync error:", error);
         }
       },
       (err) => console.error(err),
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 10000,
+      }
     );
 
-    return () => watcherRef.current && navigator.geolocation.clearWatch(watcherRef.current);
+    return () => {
+      if (watcherRef.current) {
+        navigator.geolocation.clearWatch(watcherRef.current);
+      }
+    };
   }, [currentUser]);
 
   return location;
