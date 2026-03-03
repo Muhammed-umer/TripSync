@@ -1,4 +1,3 @@
-// ./src/pages/useLocation.js
 import { useState, useEffect, useRef } from "react";
 import { db } from "../firebase/firebase";
 import { doc, setDoc } from "firebase/firestore";
@@ -18,26 +17,17 @@ export const useLocation = () => {
         const newCoords = { lat: latitude, lng: longitude, lastSeen: Date.now() };
         setLocation(newCoords);
 
-        // Sync to Firestore so others can see you
         try {
           await setDoc(doc(db, "users_locations", currentUser.uid), newCoords, { merge: true });
         } catch (error) {
-          console.error("Location sync failed:", error);
+          console.error("Sync error:", error);
         }
       },
-      (err) => console.log(err),
-      {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 5000,
-      }
+      (err) => console.error(err),
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
     );
 
-    return () => {
-      if (watcherRef.current) {
-        navigator.geolocation.clearWatch(watcherRef.current);
-      }
-    };
+    return () => watcherRef.current && navigator.geolocation.clearWatch(watcherRef.current);
   }, [currentUser]);
 
   return location;
