@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents, LayersControl, ZoomControl, LayerGroup } from "react-leaflet";
 import { useLocation } from "./useLocation";
 import { db } from "../firebase/firebase";
-import { collection, onSnapshot, getDocs, query, where } from "firebase/firestore";
+import { collection, onSnapshot, getDocs, query, where, doc, getDoc } from "firebase/firestore";
 import { useAuth } from "../context/AuthContext";
 import EmergencyPopup from "../components/EmergencyPopup";
 import "leaflet/dist/leaflet.css";
@@ -121,36 +121,51 @@ export default function Navigation() {
       where("timestamp", ">=", tenMinsAgo)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      snapshot.docChanges().forEach((change) => {
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      for (const change of snapshot.docChanges()) {
         if (change.type === "added") {
           const alertData = change.doc.data();
-          if (alertData.senderId !== currentUser.uid) {
+          if (alertData.uid !== currentUser.uid) {
+
+            let senderName = alertData.name;
+            if (!senderName || senderName === "Unknown") {
+              try {
+                const userDoc = await getDoc(doc(db, "users", alertData.uid));
+                if (userDoc.exists()) {
+                  senderName = userDoc.data().name || userDoc.data().username || "Someone";
+                } else {
+                  senderName = "Someone";
+                }
+              } catch (err) {
+                senderName = "Someone";
+              }
+            }
+
             if (navigator.geolocation) {
               navigator.geolocation.getCurrentPosition(
                 (position) => {
                   const myLat = position.coords.latitude;
                   const myLon = position.coords.longitude;
-                  const distance = getDistance(myLat, myLon, alertData.latitude, alertData.longitude);
+                  const distance = getDistance(myLat, myLon, alertData.lat, alertData.lng);
 
                   let distStr = distance >= 1000
                     ? (distance / 1000).toFixed(1) + " km"
                     : Math.round(distance) + " meters";
 
-                  showEmergencyPopup(`EMERGENCY: ${alertData.senderName} needs help! They are ${distStr} away from you.`);
+                  showEmergencyPopup(`EMERGENCY: ${senderName} needs help! They are ${distStr} away from you.`);
                 },
                 (error) => {
                   console.error("Location error for distance calcs: ", error);
-                  showEmergencyPopup(`EMERGENCY: ${alertData.senderName} needs help!`);
+                  showEmergencyPopup(`EMERGENCY: ${senderName} needs help!`);
                 },
                 { enableHighAccuracy: true }
               );
             } else {
-              showEmergencyPopup(`EMERGENCY: ${alertData.senderName} needs help!`);
+              showEmergencyPopup(`EMERGENCY: ${senderName} needs help!`);
             }
           }
         }
-      });
+      }
     });
 
     return () => unsubscribe();

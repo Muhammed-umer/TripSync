@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../firebase/firebase";
-import { doc, getDoc, collection, addDoc, onSnapshot, query, where } from "firebase/firestore";
+import { doc, getDoc, collection, addDoc, onSnapshot, query, where, serverTimestamp } from "firebase/firestore";
 import vagamonNight from "../assets/vagamon-night.jpg";
 import SupportChat from "./SupportChat";
 import EmergencyPopup from "../components/EmergencyPopup";
@@ -50,36 +50,52 @@ const Home = () => {
       where("timestamp", ">=", tenMinsAgo)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      snapshot.docChanges().forEach((change) => {
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      for (const change of snapshot.docChanges()) {
         if (change.type === "added") {
           const alertData = change.doc.data();
-          if (alertData.senderId !== currentUser.uid) {
+          if (alertData.uid !== currentUser.uid) {
+
+            // 4. Fallback: If name is missing, fetch from 'users' collection
+            let senderName = alertData.name;
+            if (!senderName || senderName === "Unknown") {
+              try {
+                const userDoc = await getDoc(doc(db, "users", alertData.uid));
+                if (userDoc.exists()) {
+                  senderName = userDoc.data().name || userDoc.data().username || "Someone";
+                } else {
+                  senderName = "Someone";
+                }
+              } catch (err) {
+                senderName = "Someone";
+              }
+            }
+
             if (navigator.geolocation) {
               navigator.geolocation.getCurrentPosition(
                 (position) => {
                   const myLat = position.coords.latitude;
                   const myLon = position.coords.longitude;
-                  const distance = calculateDistance(myLat, myLon, alertData.latitude, alertData.longitude);
+                  const distance = calculateDistance(myLat, myLon, alertData.lat, alertData.lng);
 
                   let distStr = distance >= 1000
                     ? (distance / 1000).toFixed(1) + " km"
                     : Math.round(distance) + " meters";
 
-                  showEmergencyPopup(`EMERGENCY: ${alertData.senderName} needs help! They are ${distStr} away from you.`);
+                  showEmergencyPopup(`EMERGENCY: ${senderName} needs help! They are ${distStr} away from you.`);
                 },
                 (error) => {
                   console.error("Location error for distance calcs: ", error);
-                  showEmergencyPopup(`EMERGENCY: ${alertData.senderName} needs help!`);
+                  showEmergencyPopup(`EMERGENCY: ${senderName} needs help!`);
                 },
                 { enableHighAccuracy: true }
               );
             } else {
-              showEmergencyPopup(`EMERGENCY: ${alertData.senderName} needs help!`);
+              showEmergencyPopup(`EMERGENCY: ${senderName} needs help!`);
             }
           }
         }
-      });
+      }
     });
 
     return () => unsubscribe();
@@ -94,31 +110,13 @@ const Home = () => {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         try {
-          // Fetch the latest username directly from Firestore
-          let senderName = "Unknown";
-          if (currentUser) {
-            const userDoc = await getDoc(doc(db, "users", currentUser.uid));
-            if (userDoc.exists() && userDoc.data().name) {
-              senderName = userDoc.data().name;
-            } else if (userDoc.exists() && userDoc.data().username) {
-              senderName = userDoc.data().username;
-            } else if (profileData.name || profileData.displayName) {
-              senderName = profileData.name || profileData.displayName;
-            } else if (currentUser.displayName) {
-              senderName = currentUser.displayName;
-            }
-          }
-
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
-
+          // 1. Store only required fields when triggering emergency
           await addDoc(collection(db, "emergency_alerts"), {
-            senderId: currentUser.uid,
-            senderName: senderName,
-            senderPhoto: profileData.photoURL || currentUser?.photoURL || "",
-            latitude: lat,
-            longitude: lng,
-            timestamp: Date.now()
+            uid: currentUser.uid,
+            name: currentUser.displayName || profileData.name || profileData.username || "Unknown",
+            lat,
+            lng,
+            timestamp: serverTimestamp()
           });
 
           showEmergencyPopup(`🚨 Emergency triggered successfully! Friends and nearby users have been notified.`);
