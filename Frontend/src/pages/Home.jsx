@@ -121,7 +121,7 @@ const Home = () => {
             timestamp: Date.now()
           });
 
-          showEmergencyPopup(`🚨 Emergency triggered by ${senderName}! Coordinates: [${lat}, ${lng}]`);
+          showEmergencyPopup(`🚨 Emergency triggered successfully! Friends and nearby users have been notified.`);
         } catch (error) {
           console.error("Error sending alert: ", error);
           showEmergencyPopup("Failed to send emergency alert.");
@@ -137,10 +137,10 @@ const Home = () => {
 
   return (
     <div className="relative min-h-screen bg-cover bg-center overflow-x-hidden" style={{ backgroundImage: `url(${vagamonNight})` }}>
-      <EmergencyPopup 
-        isOpen={emergencyPopup.isOpen} 
-        message={emergencyPopup.message} 
-        onClose={() => setEmergencyPopup({ ...emergencyPopup, isOpen: false })} 
+      <EmergencyPopup
+        isOpen={emergencyPopup.isOpen}
+        message={emergencyPopup.message}
+        onClose={() => setEmergencyPopup({ ...emergencyPopup, isOpen: false })}
       />
       <div className="absolute inset-0 bg-gradient-to-br from-black/60 via-[#0B1D2A]/50 to-black/70"></div>
 

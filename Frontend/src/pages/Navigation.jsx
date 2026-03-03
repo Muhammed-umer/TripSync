@@ -35,12 +35,68 @@ const MapEvents = ({ onClose }) => {
 };
 
 // Icons for tracking
-const createIcon = (color) => L.divIcon({
-  className: "",
-  html: `< svg width = "35" height = "35" viewBox = "0 0 24 24" fill = "${color}" > <path d="M12 2C8 2 5 5 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-4-3-7-7-7z" /></svg > `,
-  iconSize: [35, 35],
-  iconAnchor: [17, 35]
-});
+const createProfileIcon = (photoURL, borderColor) => {
+  return L.divIcon({
+    className: "custom-leaflet-icon",
+    html: `
+      <div style="
+        position: relative;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      ">
+        <div style="
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          border: 3px solid ${borderColor};
+          background-image: url('${photoURL || "https://ui-avatars.com/api/?name=User"}');
+          background-size: cover;
+          background-position: center;
+          background-color: white;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+          z-index: 2;
+        "></div>
+        <div style="
+          position: absolute;
+          bottom: -8px;
+          width: 0;
+          height: 0;
+          border-left: 6px solid transparent;
+          border-right: 6px solid transparent;
+          border-top: 10px solid ${borderColor};
+          z-index: 1;
+        "></div>
+      </div>
+    `,
+    iconSize: [40, 48],
+    iconAnchor: [20, 48],
+    popupAnchor: [0, -48],
+  });
+};
+
+// Locate Me Component
+const LocateControl = ({ position }) => {
+  const map = useMap();
+
+  const handleLocate = () => {
+    if (position) {
+      map.flyTo([position.lat, position.lng], 18, { animate: true, duration: 1.5 });
+    }
+  };
+
+  return (
+    <button
+      onClick={handleLocate}
+      className="absolute bottom-6 right-6 z-[1000] bg-white p-3 rounded-full shadow-2xl border border-gray-200 hover:scale-110 active:scale-95 transition-all flex items-center justify-center group"
+      title="Locate Me"
+    >
+      <LocateFixed className="text-[#3B82F6] group-hover:text-blue-700 w-6 h-6" />
+    </button>
+  );
+};
 
 export default function Navigation() {
   const navigate = useNavigate();
@@ -168,18 +224,13 @@ export default function Navigation() {
   };
 
   return (
-    <div className="relative w-screen h-[100dvh] overflow-hidden">
-      <EmergencyPopup
-        isOpen={emergencyPopup.isOpen}
-        message={emergencyPopup.message}
-        onClose={() => setEmergencyPopup({ ...emergencyPopup, isOpen: false })}
-      />
+    <div className="relative w-screen h-[100dvh] overflow-hidden bg-black">
       {/* Back Button - Top Left */}
       <button
         onClick={() => navigate("/home")}
-        className="absolute top-5 left-5 z-[1001] bg-white p-3 rounded-full shadow-xl hover:scale-105 transition"
+        className="absolute top-5 left-5 z-[1001] bg-white/90 backdrop-blur-sm p-3 rounded-full shadow-xl hover:scale-105 transition"
       >
-        <ArrowLeft size={24} />
+        <ArrowLeft size={24} className="text-gray-800" />
       </button>
 
       <div className="absolute top-20 left-5 z-[1001] flex flex-col gap-3">
@@ -199,7 +250,6 @@ export default function Navigation() {
       </div>
 
       <MapContainer
-        ref={mapRef}
         center={myLocation ? [myLocation.lat, myLocation.lng] : [12.9716, 77.5946]}
         zoom={16}
         zoomControl={false} // Disable default so we can move it
@@ -210,23 +260,30 @@ export default function Navigation() {
 
         <LayersControl position="topright">
           <LayersControl.BaseLayer checked name="Satellite View">
-            <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
+            <TileLayer
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+              attribution="Tiles &copy; Esri"
+            />
           </LayersControl.BaseLayer>
           <LayersControl.BaseLayer name="Street Map">
             <TileLayer url="https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png" maxNativeZoom={19} maxZoom={22} />
           </LayersControl.BaseLayer>
         </LayersControl>
 
+        {myLocation && <LocateControl position={myLocation} />}
+
         {allUsers.map(user => {
           const isMe = user.id === currentUser?.uid;
-          const borderColor = isMe ? "#3B82F6" : "#EF4444";
+          const borderColor = isMe ? "#3B82F6" : "#EF4444"; // Blue for Me, Red for Others
           return (
             <Marker
               key={user.id}
               position={[user.lat, user.lng]}
-              icon={createMarkerIcon(user, usersInfo, borderColor)}
+              icon={createProfileIcon(user.photoURL, borderColor)}
             >
-              <Popup className="font-semibold text-gray-800">{isMe ? "You" : usersInfo[user.id]?.username || "Classmate"}</Popup>
+              <Popup className="font-semibold text-gray-800">
+                {isMe ? "You" : user.name || "Classmate"}
+              </Popup>
             </Marker>
           );
         })}
