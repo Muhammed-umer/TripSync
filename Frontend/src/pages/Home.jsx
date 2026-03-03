@@ -7,6 +7,7 @@ import { doc, getDoc, collection, addDoc, onSnapshot, query, where, serverTimest
 import vagamonNight from "../assets/vagamon-night.jpg";
 import SupportChat from "./SupportChat";
 import EmergencyPopup from "../components/EmergencyPopup";
+import { useLocation } from "./useLocation";
 
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const R = 6371e3; // metres
@@ -14,6 +15,7 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   const p2 = lat2 * Math.PI / 180;
   const dp = (lat2 - lat1) * Math.PI / 180;
   const dl = (lon2 - lon1) * Math.PI / 180;
+
 
   const a = Math.sin(dp / 2) * Math.sin(dp / 2) +
     Math.cos(p1) * Math.cos(p2) *
@@ -26,6 +28,7 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 const Home = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
+  const location = useLocation();
   const [profileData, setProfileData] = useState({ photoURL: "" });
   const [emergencyPopup, setEmergencyPopup] = useState({ isOpen: false, message: "" });
 
@@ -46,7 +49,7 @@ const Home = () => {
 
     const tenMinsAgo = Date.now() - 10 * 60 * 1000;
     const q = query(
-      collection(db, "emergency_alerts"),
+      collection(db, "emergencies"),
       where("timestamp", ">=", tenMinsAgo)
     );
 
@@ -101,36 +104,29 @@ const Home = () => {
     return () => unsubscribe();
   }, [currentUser]);
 
-  const handleEmergency = () => {
-    if (!navigator.geolocation) {
-      showEmergencyPopup("Geolocation is not supported by your browser.");
+  const handleEmergency = async () => {
+    if (!location) {
+      showEmergencyPopup("Getting precise location... Please try again in a few seconds.");
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          // 1. Store only required fields when triggering emergency
-          await addDoc(collection(db, "emergency_alerts"), {
-            uid: currentUser.uid,
-            name: currentUser.displayName || profileData.name || profileData.username || "Unknown",
-            lat,
-            lng,
-            timestamp: serverTimestamp()
-          });
+    try {
+      const { lat, lng } = location;
 
-          showEmergencyPopup(`🚨 Emergency triggered successfully! Friends and nearby users have been notified.`);
-        } catch (error) {
-          console.error("Error sending alert: ", error);
-          showEmergencyPopup("Failed to send emergency alert.");
-        }
-      },
-      (error) => {
-        console.error("Error getting location: ", error);
-        showEmergencyPopup("Failed to get location for emergency alert.");
-      },
-      { enableHighAccuracy: true }
-    );
+      // 1. Store only required fields when triggering emergency
+      await addDoc(collection(db, "emergencies"), {
+        uid: currentUser.uid,
+        name: currentUser.displayName || profileData.name || profileData.username || "Unknown",
+        lat,
+        lng,
+        timestamp: serverTimestamp()
+      });
+
+      showEmergencyPopup(`🚨 Emergency triggered successfully! Friends and nearby users have been notified.`);
+    } catch (error) {
+      console.error("Error sending alert: ", error);
+      showEmergencyPopup("Failed to send emergency alert.");
+    }
   };
 
   return (

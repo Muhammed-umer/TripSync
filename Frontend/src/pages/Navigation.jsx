@@ -58,6 +58,86 @@ export default function Navigation() {
   const routingControlRef = useRef(null);
   const [emergencyPopup, setEmergencyPopup] = useState({ isOpen: false, message: "" });
 
+  const showEmergencyPopup = (msg) =>
+    setEmergencyPopup({ isOpen: true, message: msg });
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const tenMinsAgo = Date.now() - 10 * 60 * 1000;
+
+    const q = query(
+      collection(db, "emergencies"),
+      where("timestamp", ">=", tenMinsAgo)
+    );
+
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      for (const change of snapshot.docChanges()) {
+        if (change.type === "added") {
+          const alertData = change.doc.data();
+
+          if (alertData.uid !== currentUser.uid) {
+            let senderName = alertData.name;
+
+            // 🔹 Fallback: fetch from users collection if missing
+            if (!senderName || senderName === "Unknown") {
+              try {
+                const userDoc = await getDoc(doc(db, "users", alertData.uid));
+                if (userDoc.exists()) {
+                  senderName =
+                    userDoc.data().username ||
+                    userDoc.data().name ||
+                    "Someone";
+                } else {
+                  senderName = "Someone";
+                }
+              } catch (err) {
+                senderName = "Someone";
+              }
+            }
+
+            if (navigator.geolocation) {
+              navigator.geolocation.getCurrentPosition(
+                (position) => {
+                  const myLat = position.coords.latitude;
+                  const myLon = position.coords.longitude;
+
+                  const distance = getDistance(
+                    myLat,
+                    myLon,
+                    alertData.lat,
+                    alertData.lng
+                  );
+
+                  const distStr =
+                    distance >= 1000
+                      ? (distance / 1000).toFixed(1) + " km"
+                      : Math.round(distance) + " meters";
+
+                  showEmergencyPopup(
+                    `🚨 EMERGENCY: ${senderName} needs help! They are ${distStr} away from you.`
+                  );
+                },
+                () => {
+                  showEmergencyPopup(
+                    `🚨 EMERGENCY: ${senderName} needs help!`
+                  );
+                },
+                { enableHighAccuracy: true }
+              );
+            } else {
+              showEmergencyPopup(
+                `🚨 EMERGENCY: ${senderName} needs help!`
+              );
+            }
+          }
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [currentUser]);
+
   useEffect(() => {
     const fetchUsers = async () => {
       const snapshot = await getDocs(collection(db, "users"));
@@ -103,7 +183,7 @@ export default function Navigation() {
       const info = usersInfo[user.id] || {};
       const borderColor = isMe ? "#3B82F6" : "#EF4444";
       const dist = myLocation ? getDistance(myLocation.lat, myLocation.lng, user.lat, user.lng) : 0;
-      
+
       return (
         <Marker key={user.id} position={[user.lat, user.lng]} icon={createMarkerIcon(user, usersInfo, borderColor)}>
           <Popup autoPan={false}>
@@ -136,7 +216,7 @@ export default function Navigation() {
         <SearchField />
         <MapEvents onClose={() => setActiveTab(null)} />
         <ZoomControl position="bottomleft" />
-        
+
         <LayersControl position="topright">
           <LayersControl.BaseLayer checked name="Satellite View">
             <LayerGroup>
