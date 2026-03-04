@@ -11,9 +11,8 @@ import Login from "./pages/Login";
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
 import ChangePassword from "./pages/ChangePassword";
-import Navigation from "./pages/Navigation"; // ✅ ADD THIS
+import Navigation from "./pages/Navigation";
 import Attendance from "./pages/Attendance";
-
 
 // 🔐 Protected Route Wrapper
 const ProtectedRoute = ({ children }) => {
@@ -26,63 +25,22 @@ function App() {
 
   return (
     <Routes>
-
-      {/* Login */}
-      <Route
-        path="/"
-        element={
-          currentUser ? <Navigate to="/home" replace /> : <Login />
-        }
-      />
+      <Route path="/" element={currentUser ? <Navigate to="/home" replace /> : <Login />} />
 
       {/* Protected Routes */}
-      <Route
-        path="/home"
-        element={
-          <ProtectedRoute>
-            <Home />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+      <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+      <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
+      <Route path="/navigation" element={<ProtectedRoute><Navigation /></ProtectedRoute>} />
+      <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
 
-      <Route
-        path="/profile"
-        element={
-          <ProtectedRoute>
-            <Profile />
-          </ProtectedRoute>
-        }
-      />
+      {/* Admin Routes */}
+      <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+      <Route path="/admin/attendance" element={<ProtectedRoute><AdminAttendance /></ProtectedRoute>} />
+      <Route path="/admin/attendance/present" element={<ProtectedRoute><AdminPresent /></ProtectedRoute>} />
+      <Route path="/admin/attendance/absent" element={<ProtectedRoute><AdminAbsent /></ProtectedRoute>} />
 
-      <Route
-        path="/change-password"
-        element={
-          <ProtectedRoute>
-            <ChangePassword />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* 🗺 Navigation Page */}
-      <Route
-        path="/navigation"
-        element={
-          <ProtectedRoute>
-            <Navigation />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Catch unknown routes */}
       <Route path="*" element={<Navigate to="/" replace />} />
-
-      <Route path="/attendance" element={<Attendance />} />
-
-      <Route path="/admin" element={<Admin />} />
-<Route path="/admin/attendance" element={<AdminAttendance />} />
-<Route path="/admin/attendance/present" element={<AdminPresent />} />
-<Route path="/admin/attendance/absent" element={<AdminAbsent />} />
-
     </Routes>
   );
 }
