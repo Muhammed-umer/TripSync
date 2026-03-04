@@ -1,128 +1,247 @@
-// ./src/pages/Attendance.jsx
+// src/pages/Attendance.jsx
+
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import { db } from "../firebase/firebase";
 import {
   doc,
   getDoc,
   setDoc,
+  arrayUnion,
   collection,
-  onSnapshot,
-  serverTimestamp
+  getDocs
 } from "firebase/firestore";
 
+import { db } from "../firebase/firebase";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+
+import campfireBg from "../assets/campfire.png";
+
 const Attendance = () => {
+
   const navigate = useNavigate();
   const { currentUser } = useAuth();
 
   const [username, setUsername] = useState("");
-  const [vote, setVote] = useState(null);
-  const [presentCount, setPresentCount] = useState(0);
-  const [absentCount, setAbsentCount] = useState(0);
+  const [allUsers, setAllUsers] = useState([]);
+  const [presentList, setPresentList] = useState([]);
+  const [absentList, setAbsentList] = useState([]);
+  const [clicked, setClicked] = useState(false);
 
-  const votesRef = collection(
-    db,
-    "attendance",
-    "expedition1",
-    "votes"
-  );
+  /* ---------------- Load Users ---------------- */
 
-  // Get username
   useEffect(() => {
-    const fetchUsername = async () => {
+
+    const fetchUsers = async () => {
+
+      const snapshot = await getDocs(collection(db, "users"));
+
+      const users = snapshot.docs
+        .map(doc => doc.data().username)
+        .filter(Boolean);
+
+      setAllUsers(users);
+
+    };
+
+    fetchUsers();
+
+  }, []);
+
+  /* ---------------- Current Username ---------------- */
+
+  useEffect(() => {
+
+    const fetchCurrentUser = async () => {
+
       if (!currentUser) return;
 
       const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+
       if (userDoc.exists()) {
         setUsername(userDoc.data().username);
       }
+
     };
 
-    fetchUsername();
+    fetchCurrentUser();
+
   }, [currentUser]);
 
-  // Real-time vote listener
+  /* ---------------- Load Attendance ---------------- */
+
   useEffect(() => {
-    const unsubscribe = onSnapshot(votesRef, (snapshot) => {
-      let present = 0;
-      let absent = 0;
-      let userVote = null;
 
-      snapshot.forEach((doc) => {
-        const data = doc.data();
+    const loadAttendance = async () => {
 
-        if (data.status === "present") present++;
-        if (data.status === "absent") absent++;
+      const docRef = doc(db, "attendance", "today");
+      const snap = await getDoc(docRef);
 
-        if (doc.id === currentUser?.uid) {
-          userVote = data.status;
-        }
-      });
+      let present = [];
 
-      setPresentCount(present);
-      setAbsentCount(absent);
-      setVote(userVote);
-    });
+      if (snap.exists()) {
+        present = snap.data().present || [];
+      }
 
-    return () => unsubscribe();
-  }, [currentUser]);
+      setPresentList(present);
 
-  const handleVote = async (status) => {
-  if (!currentUser || vote) {
-    alert("You have already voted.");
-    return;
-  }
+      if (present.includes(username)) {
+        setClicked(true);
+      }
 
-  const voteRef = doc(
-    db,
-    "attendance",
-    "expedition1",
-    "votes",
-    currentUser.uid
-  );
+      const absent = allUsers
+        .filter(name => !present.includes(name))
+        .sort((a, b) => a.localeCompare(b));
 
-  await setDoc(voteRef, {
-    status,
-    username,              // 🔥 ADD THIS
-    timestamp: serverTimestamp()
-  });
-};
+      setAbsentList(absent);
+
+    };
+
+    if (allUsers.length > 0) loadAttendance();
+
+  }, [allUsers, username]);
+
+  /* ---------------- Mark Present ---------------- */
+
+  const markPresent = async () => {
+
+    if (clicked || !username) return;
+
+    const docRef = doc(db, "attendance", "today");
+
+    await setDoc(
+      docRef,
+      { present: arrayUnion(username) },
+      { merge: true }
+    );
+
+    const updatedPresent = [...presentList, username];
+
+    setPresentList(updatedPresent);
+
+    const updatedAbsent = allUsers
+      .filter(name => !updatedPresent.includes(name))
+      .sort((a, b) => a.localeCompare(b));
+
+    setAbsentList(updatedAbsent);
+
+    setClicked(true);
+
+  };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-black text-white">
-      <div className="bg-gray-900 p-8 rounded-2xl w-96">
 
-        <div className="flex justify-between mb-6">
-          <h2 className="text-xl font-bold">Attendance Poll</h2>
-          <button onClick={() => navigate("/home")}>Back</button>
+    <div className="min-h-screen bg-[#0F1C2E] text-white p-10">
+
+      {/* -------- Title -------- */}
+
+      <h1 className="text-4xl font-extrabold text-center mb-6 
+               bg-gradient-to-r from-orange-400 via-yellow-300 to-orange-500 
+               bg-clip-text text-transparent drop-shadow-lg">
+  Attendance
+</h1>
+
+      {/* -------- Buttons -------- */}
+
+      <div className="flex justify-center gap-4 mb-10">
+
+  {/* Present Button */}
+  <button
+    onClick={markPresent}
+    disabled={clicked}
+    className={`px-7 py-3 rounded-xl font-semibold text-white transition ${
+      clicked
+        ? "bg-gray-500 cursor-not-allowed"
+        : "bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400 shadow-lg"
+    }`}
+  >
+    Present
+  </button>
+
+  {/* Back Button */}
+  <button
+    onClick={() => navigate("/home")}
+    className="px-7 py-3 rounded-xl font-semibold text-white
+               bg-gradient-to-r from-blue-500 to-indigo-600
+               hover:from-blue-400 hover:to-indigo-500
+               transition shadow-lg"
+  >
+    Back
+  </button>
+
+</div>
+
+      {/* -------- Lists -------- */}
+
+      <div className="grid grid-cols-2 gap-10">
+
+        {/* -------- Absent Card -------- */}
+
+        <div
+          className="relative p-6 rounded-2xl overflow-hidden border border-orange-400/40 shadow-[0_0_25px_rgba(255,140,0,0.35)]"
+          style={{
+            backgroundImage: `url(${campfireBg})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center"
+          }}
+        >
+
+          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-black/70"></div>
+
+          <div className="relative z-10">
+
+            <h2 className="text-red-400 mb-4 text-xl font-semibold">
+              Absent List
+            </h2>
+
+            <ol className="list-decimal list-inside space-y-2">
+
+              {absentList.map((name, index) => (
+                <li key={index}>{name}</li>
+              ))}
+
+            </ol>
+
+          </div>
+
         </div>
 
-        {!vote ? (
-  <>
-    <div
-      onClick={() => handleVote("present")}
-      className="p-4 mb-4 rounded-xl border border-green-400/30 cursor-pointer"
-    >
-      Present ({presentCount})
-    </div>
+        {/* -------- Present Card -------- */}
 
-    <div
-      onClick={() => handleVote("absent")}
-      className="p-4 rounded-xl border border-red-400/30 cursor-pointer"
-    >
-      Absent ({absentCount})
-    </div>
-  </>
-) : (
-  <div className="p-4 rounded-xl border border-blue-400 bg-blue-500/10 text-center">
-    You marked yourself as <strong className="capitalize">{vote}</strong>
-  </div>
-)}
+        <div
+          className="relative p-6 rounded-2xl overflow-hidden border border-orange-400/40 shadow-[0_0_25px_rgba(255,140,0,0.35)]"
+          style={{
+            backgroundImage: `url(${campfireBg})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center"
+          }}
+        >
+
+          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-black/70"></div>
+
+          <div className="relative z-10">
+
+            <h2 className="text-emerald-400 mb-4 text-xl font-semibold">
+              Present List
+            </h2>
+
+            <ol className="list-decimal list-inside space-y-2">
+
+              {presentList.map((name, index) => (
+                <li key={index}>{name}</li>
+              ))}
+
+            </ol>
+
+          </div>
+
+        </div>
 
       </div>
+
     </div>
+
   );
+
 };
 
 export default Attendance;
