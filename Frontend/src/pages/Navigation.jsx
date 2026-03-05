@@ -10,7 +10,6 @@ import "leaflet/dist/leaflet.css";
 import * as L from "leaflet";
 import "leaflet-routing-machine";
 import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
-import MarkerClusterGroup from 'react-leaflet-cluster';
 import { Target, Mountain, Users, X, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import SearchField from "./SearchField";
@@ -26,7 +25,6 @@ const getDistance = (lat1, lon1, lat2, lon2) => {
   return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 };
 
-// 🔹 Human-readable relative time
 const formatLastSeen = (timestamp) => {
   if (!timestamp) return "Unknown";
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -38,13 +36,16 @@ const formatLastSeen = (timestamp) => {
   return "Offline";
 };
 
+// 🔥 FIX: Improved AutoCenter logic
 function MapAutoCenter({ coords }) {
   const map = useMap();
-  const hasFixed = useRef(false);
+  const hasCentered = useRef(false);
+
   useEffect(() => {
-    if (coords && !hasFixed.current) {
-      map.setView([coords.lat, coords.lng], 17, { animate: true });
-      hasFixed.current = true;
+    if (coords && !hasCentered.current) {
+      // Use flyTo for a smooth initial snap to the student's actual position
+      map.flyTo([coords.lat, coords.lng], 16, { animate: true, duration: 1.5 });
+      hasCentered.current = true;
     }
   }, [coords, map]);
   return null;
@@ -69,12 +70,10 @@ export default function Navigation() {
 
   const showEmergencyPopup = (msg) => setEmergencyPopup({ isOpen: true, message: msg });
 
-  // 1. Listen for Emergencies
   useEffect(() => {
     if (!currentUser) return;
     const tenMinsAgo = Date.now() - 10 * 60 * 1000;
     const q = query(collection(db, "emergencies"), where("timestamp", ">=", tenMinsAgo));
-
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       for (const change of snapshot.docChanges()) {
         if (change.type === "added") {
@@ -91,7 +90,6 @@ export default function Navigation() {
     return () => unsubscribe();
   }, [currentUser, myLocation]);
 
-  // 2. Fetch User Profiles & Real-time Locations
   useEffect(() => {
     const fetchUsers = async () => {
       const snapshot = await getDocs(collection(db, "users"));
@@ -131,17 +129,13 @@ export default function Navigation() {
 
   const formatDist = (m) => m >= 1000 ? (m / 1000).toFixed(2) + " km" : Math.round(m) + " m";
 
-  // 3. Render Markers with Presence Logic
   const userMarkers = useMemo(() => {
     return allUsers.map(user => {
       const isMe = user.id === currentUser?.uid;
       const info = usersInfo[user.id] || {};
-      
-      // Determine if the user is "Offline" (no update in last 3 minutes)
       const isInactive = (Date.now() - (user.lastSeen || 0)) > 180000;
       const borderColor = isMe ? "#3B82F6" : (isInactive ? "#9CA3AF" : "#EF4444");
       const opacity = isInactive ? 0.6 : 1; 
-
       const dist = myLocation ? getDistance(myLocation.lat, myLocation.lng, user.lat, user.lng) : 0;
 
       return (
@@ -183,7 +177,15 @@ export default function Navigation() {
         <button onClick={fetchNearbySpots} className={`p-4 rounded-full shadow-2xl transition border-2 ${activeTab === 'spots' ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-600'}`}><Mountain size={24} /></button>
       </div>
 
-      <MapContainer ref={mapRef} center={[10.2313, 76.9204]} zoom={15} maxZoom={22} zoomControl={false} style={{ height: "100%", width: "100%" }}>
+      {/* 🔥 Updated initial center to be broad, MapAutoCenter will handle the rest */}
+      <MapContainer 
+        ref={mapRef} 
+        center={[10, 77]} 
+        zoom={7} 
+        maxZoom={22} 
+        zoomControl={false} 
+        style={{ height: "100%", width: "100%" }}
+      >
         <MapAutoCenter coords={myLocation} />
         <SearchField />
         <MapEvents onClose={() => setActiveTab(null)} />
@@ -201,9 +203,7 @@ export default function Navigation() {
           </LayersControl.BaseLayer>
         </LayersControl>
 
-        <MarkerClusterGroup spiderfyOnMaxZoom={true} showCoverageOnHover={false}>
-          {userMarkers}
-        </MarkerClusterGroup>
+        {userMarkers}
       </MapContainer>
 
       <button onClick={() => myLocation && mapRef.current.flyTo([myLocation.lat, myLocation.lng], 18)} className="absolute bottom-8 right-16 z-[1000] bg-white p-4 rounded-full shadow-2xl active:scale-90 transition border-2 border-white">
