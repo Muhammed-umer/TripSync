@@ -1,5 +1,5 @@
 // ./src/pages/Home.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../firebase/firebase";
@@ -20,6 +20,84 @@ import beachImage from "../assets/beach.png";
 import SupportChat from "./SupportChat";
 import bannerImg from "../assets/banner.png";
 import flagImg from "../assets/flag.png";
+
+// --- NEW TIMER COMPONENT ---
+const TripTimer = () => {
+  const [timeLeft, setTimeLeft] = useState({});
+  const [tripState, setTripState] = useState("BEFORE"); // BEFORE, DURING, AFTER
+
+  useEffect(() => {
+    const calculateTimeLeft = () => {
+      const now = new Date();
+      // Phase dates
+      const startTime = new Date("2026-03-06T20:00:00");
+      const endTime = new Date("2026-03-09T06:00:00");
+
+      let targetDate = startTime;
+      let state = "BEFORE";
+
+      if (now > startTime && now < endTime) {
+        targetDate = endTime;
+        state = "DURING";
+      } else if (now >= endTime) {
+        state = "AFTER";
+      }
+
+      setTripState(state);
+
+      const difference = targetDate - now;
+      let timeLeft = {};
+
+      if (difference > 0) {
+        timeLeft = {
+          days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+          hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+          minutes: Math.floor((difference / 1000 / 60) % 60),
+          seconds: Math.floor((difference / 1000) % 60),
+        };
+      }
+      return timeLeft;
+    };
+
+    const timer = setInterval(() => {
+      setTimeLeft(calculateTimeLeft());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  if (tripState === "AFTER") {
+    return (
+      <div className="w-full bg-slate-900/60 border border-emerald-500/30 p-6 rounded-3xl text-white backdrop-blur-md text-center">
+        <h3 className="text-emerald-400 font-black italic tracking-widest uppercase">Trip Completed</h3>
+        <p className="text-xs font-bold mt-2 uppercase">Hope everyone reached home safely! ❤️</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full bg-slate-900/60 border border-white/10 p-6 rounded-3xl text-white backdrop-blur-md">
+      <h3 className={`font-black mb-3 tracking-tighter uppercase ${tripState === "BEFORE" ? "text-yellow-400" : "text-emerald-400"}`}>
+        {tripState === "BEFORE" ? "🚀 GET READY FOR THE TRIP!" : "✨ ENJOY EVERY MOMENT!"}
+      </h3>
+      
+      <div className="flex justify-between items-center gap-2 mb-4">
+        {['days', 'hours', 'minutes', 'seconds'].map((unit) => (
+          <div key={unit} className="flex-1 bg-black/40 rounded-xl p-2 border border-white/5 text-center">
+            <div className="text-xl font-black">{timeLeft[unit] || 0}</div>
+            <div className="text-[8px] uppercase opacity-60 font-bold">{unit}</div>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-[10px] font-bold tracking-widest uppercase opacity-80 italic leading-tight text-center">
+        {tripState === "BEFORE" 
+          ? "Pack your bags and check your gear!" 
+          : "Create memories that last forever. This is our first and last trip together!"}
+      </p>
+    </div>
+  );
+};
 
 const Home = () => {
   const navigate = useNavigate();
@@ -279,13 +357,9 @@ const Home = () => {
                   </button>
                 </div>
 
-                <div className="w-full bg-slate-900/60 border border-white/10 p-6 rounded-3xl text-white backdrop-blur-md">
-                  <h3 className="text-cyan-200 font-bold mb-2">Current Expedition</h3>
-                  <p className="text-xs font-black mb-4 tracking-widest uppercase">VAGAMON HILLS</p>
-                  <div className="w-full h-2 bg-white/20 rounded-full">
-                    <div className="h-full bg-emerald-400 w-[75%] rounded-full shadow-[0_0_10px_rgba(52,211,153,0.5)]"></div>
-                  </div>
-                </div>
+                {/* 🔥 DYNAMIC TIMER REPLACED STATIC SECTION */}
+                <TripTimer />
+
               </div>
             </div>
           </div>
