@@ -38,7 +38,7 @@ const MenuItem = ({ icon, label, onClick, danger }) => (
   </button>
 );
 
-const SupportChat = () => {
+const SupportChat = ({ onToggle }) => { // 🔥 Destructured onToggle prop
   const { currentUser } = useAuth();
   const [open, setOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
@@ -65,6 +65,11 @@ const SupportChat = () => {
   const [menuMessage, setMenuMessage] = useState(null);
   const longPressTimer = useRef(null);
   const [pinnedMessage, setPinnedMessage] = useState(null);
+
+  // 🔥 Notify parent component (Home) when chat open/close state changes
+  useEffect(() => {
+    if (onToggle) onToggle(open);
+  }, [open, onToggle]);
 
   useEffect(() => {
     const handleClick = () => {
