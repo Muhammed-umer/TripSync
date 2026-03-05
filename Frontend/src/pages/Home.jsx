@@ -1,10 +1,19 @@
 // ./src/pages/Home.jsx
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../firebase/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  collection,
+  addDoc,
+  serverTimestamp,
+  onSnapshot,
+  query,
+  orderBy,
+  limit
+} from "firebase/firestore";
 import confetti from "canvas-confetti";
 
 import beachImage from "../assets/beach.png";
@@ -13,14 +22,63 @@ import bannerImg from "../assets/banner.png";
 import flagImg from "../assets/flag.png";
 
 const Home = () => {
-
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
 
   const [profileData, setProfileData] = useState({});
   const [showProfile, setShowProfile] = useState(false);
   const [showBanner, setShowBanner] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+
+  // State for the real-time Emergency Popup
+  const [emergencyPopup, setEmergencyPopup] = useState(null);
+  const [userCoords, setUserCoords] = useState(null);
+
+  // 1. Initialize Location Tracking for Emergency distance calculation
+  useEffect(() => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      });
+    }
+  }, []);
+
+  // 2. Real-time Emergency Listener
+  useEffect(() => {
+    const q = query(collection(db, "emergencies"), orderBy("timestamp", "desc"), limit(1));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (snapshot.empty) return;
+
+      const emergencyDoc = snapshot.docs[0];
+      const data = emergencyDoc.data();
+      
+      // Safety check: only show if created in the last 60 seconds
+      const now = Date.now();
+      const alertTime = data.timestamp?.toMillis() || now;
+      const isNew = now - alertTime < 60000;
+
+      if (isNew && data.uid !== currentUser?.uid) {
+        let distanceText = "Calculating distance...";
+        if (userCoords && data.lat && data.lng) {
+          const d = calculateDistance(userCoords.lat, userCoords.lng, data.lat, data.lng);
+          distanceText = `${d.toFixed(2)} km away`;
+        }
+        setEmergencyPopup({ ...data, distanceText });
+      }
+    });
+
+    return () => unsubscribe();
+  }, [currentUser, userCoords]);
+
+  // Haversine Formula for distance between two sets of coordinates
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Radius of earth in km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -31,14 +89,13 @@ const Home = () => {
     fetchUser();
   }, [currentUser]);
 
+  // Trigger the visual unrolling banner with flower confetti
   const triggerFlowers = () => {
     setShowBanner(true);
-
     const duration = 3000;
     const end = Date.now() + duration;
 
     (function frame() {
-
       confetti({
         particleCount: 2,
         angle: 60,
@@ -47,7 +104,6 @@ const Home = () => {
         colors: ["#ff0055", "#ffcc00", "#33ff00"],
         zIndex: 300
       });
-
       confetti({
         particleCount: 2,
         angle: 120,
@@ -56,12 +112,45 @@ const Home = () => {
         colors: ["#ff0055", "#ffcc00", "#33ff00"],
         zIndex: 300
       });
-
-      if (Date.now() < end) {
-        requestAnimationFrame(frame);
-      }
-
+      if (Date.now() < end) { requestAnimationFrame(frame); }
     })();
+  };
+
+  // THE EMERGENCY TRIGGER: Sends location to Firestore
+  const handleEmergency = async () => {
+    const sendAlert = async (lat, lng) => {
+      try {
+        await addDoc(collection(db, "emergencies"), {
+          uid: currentUser.uid,
+          name: profileData.username || currentUser.displayName || "A TripMate",
+          lat,
+          lng,
+          timestamp: serverTimestamp()
+        });
+        alert("Alert sent to all users!");
+      } catch (err) {
+        console.error("Firebase Error:", err);
+      }
+    };
+
+    if (userCoords) {
+      await sendAlert(userCoords.lat, userCoords.lng);
+    } else {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          setUserCoords(coords);
+          await sendAlert(coords.lat, coords.lng);
+        },
+        () => alert("Please enable location services to use the Emergency button.")
+      );
+    }
+  };
+
+  const handleLogout = async () => {
+    if (window.confirm("Are you sure you want to logout?")) {
+      await logout();
+    }
   };
 
   return (
@@ -72,201 +161,150 @@ const Home = () => {
         backgroundAttachment: "fixed"
       }}
     >
-
       <div className="absolute inset-0 bg-black/50 z-0"></div>
 
-      {/* HEADER AREA */}
+      {/* --- EMERGENCY POPUP UI --- */}
+      {emergencyPopup && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+          <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-[0_0_50px_rgba(239,68,68,0.5)] border-t-8 border-red-500 animate-in zoom-in duration-300">
+            <div className="text-7xl mb-4 animate-bounce">🚨</div>
+            <h2 className="text-3xl font-black text-red-600 mb-2">HELP NEEDED!</h2>
+            <p className="text-gray-900 font-extrabold text-xl">{emergencyPopup.name}</p>
+            <div className="my-6 p-4 bg-red-50 rounded-2xl border-2 border-red-100">
+              <p className="text-red-700 font-bold text-lg">📍 {emergencyPopup.distanceText}</p>
+            </div>
+            <button 
+              onClick={() => setEmergencyPopup(null)}
+              className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-2xl shadow-lg transition-all active:scale-95"
+            >
+              DISMISS
+            </button>
+          </div>
+        </div>
+      )}
 
+      {/* HEADER AREA: FLAGS AND BANNER BUTTON */}
       <div
         className={`absolute top-2 left-0 right-0 w-full z-30 pointer-events-none transition-opacity duration-300 ${
-          chatOpen
-            ? "opacity-0 invisible md:opacity-100 md:visible"
-            : "opacity-100 visible"
+          chatOpen ? "opacity-0 invisible md:opacity-100 md:visible" : "opacity-100 visible"
         }`}
       >
-
         <div className="max-w-6xl mx-auto px-4 flex justify-between items-start gap-4">
-
-          {/* FLAG SECTION */}
-
           <div className="flex items-start">
-
-            {/* Stick */}
-
             <div className="w-2 h-28 md:h-48 bg-gradient-to-b from-zinc-300 to-zinc-700 rounded-full shadow-lg"></div>
-
-            {/* Flag */}
-
             <div className="relative w-28 h-20 md:w-56 md:h-36 overflow-hidden rounded-sm shadow-2xl border-y border-r border-white/10 animate-flagWave origin-left -ml-1 mt-1">
-
-              <img
-                src={flagImg}
-                alt="Tamil Nadu flag waving"
-                className="w-full h-full object-cover"
-              />
-
+              <img src={flagImg} alt="Flag waving" className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-transparent to-black/10"></div>
-
             </div>
-
           </div>
 
-          {/* BUTTON */}
-
           <div className="flex-1 flex justify-center items-start mt-14 md:mt-4 pointer-events-auto">
-
             <button
               onClick={triggerFlowers}
               className="whitespace-nowrap px-4 py-2 md:px-12 md:py-4 bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-[10px] md:text-xl font-black uppercase tracking-widest rounded-full shadow-[0_0_20px_rgba(16,185,129,0.4)] border border-emerald-400/50 hover:scale-110 active:scale-95 transition-all mx-2"
             >
               View Banner
             </button>
-
           </div>
-
           <div className="w-16 md:hidden"></div>
-
         </div>
-
       </div>
 
       {/* BANNER MODAL */}
-
       {showBanner && (
-
         <div
           className="fixed inset-0 z-[200] flex justify-center items-start pt-20 md:pt-12 px-2 md:px-6 backdrop-blur-md animate-fadeIn"
           onClick={() => setShowBanner(false)}
         >
-
           <button
             onClick={() => setShowBanner(false)}
             className="absolute top-4 right-4 z-[210] bg-red-600 text-white px-6 py-2 rounded-full text-sm font-bold shadow-2xl hover:bg-red-700 border border-white/20"
           >
             ✕ CLOSE
           </button>
-
           <div
             className="relative w-full max-w-[95vw] md:max-w-[480px] animate-unroll shadow-[0_0_100px_rgba(0,0,0,0.8)] origin-top rounded-b-xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-
-            <img
-              src={bannerImg}
-              alt="Event Banner"
-              className="w-full h-auto max-h-[85vh] object-contain border-x-4 border-b-4 border-white/20"
-            />
-
+            <img src={bannerImg} alt="Event Banner" className="w-full h-auto max-h-[85vh] object-contain border-x-4 border-b-4 border-white/20" />
           </div>
-
         </div>
-
       )}
 
-      {/* DASHBOARD */}
-
+      {/* MAIN DASHBOARD PANEL */}
       <div className="relative w-full max-w-6xl px-4 z-10 mt-28 md:mt-36">
-
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
-
-          {/* LEFT PANEL */}
-
           <div className="relative w-full max-w-lg rounded-[3rem] overflow-hidden shadow-2xl border border-white/20 mx-auto bg-black/20 backdrop-blur-md">
-
             <div className="relative z-10">
-
               <div className="px-8 py-6 flex justify-between items-center">
-
                 <div>
-                  <h1 className="text-2xl font-black text-white tracking-tighter uppercase">
-                    TripSync
-                  </h1>
-
-                  <p className="text-sm text-yellow-200 font-bold tracking-widest">
-                    CSE Warriors '26
-                  </p>
+                  <h1 className="text-2xl font-black text-white tracking-tighter uppercase">TripSync</h1>
+                  <p className="text-sm text-yellow-200 font-bold tracking-widest">CSE Warriors '26</p>
                 </div>
-
                 <div
-                  onClick={() => setShowProfile(true)}
+                  onClick={() => setShowProfile(!showProfile)}
                   className="w-12 h-12 rounded-xl border-2 border-cyan-400 overflow-hidden cursor-pointer hover:scale-110 transition shadow-lg"
                 >
-
-                  <img
-                    src={
-                      profileData.photoURL ||
-                      `https://ui-avatars.com/api/?name=${currentUser?.email}`
-                    }
-                    className="w-full h-full object-cover"
-                    alt="User Profile"
-                  />
-
+                  <img src={profileData.photoURL || `https://ui-avatars.com/api/?name=${currentUser?.email}`} className="w-full h-full object-cover" alt="User Profile" />
                 </div>
-
               </div>
 
               <div className="p-8 space-y-8">
+                {showProfile && (
+                  <div className="bg-black/40 p-6 rounded-3xl text-center border border-white/20 animate-in fade-in duration-300">
+                     <h3 className="text-white mb-4 font-bold">{profileData.username || currentUser.displayName}</h3>
+                     <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl transition-all">Logout</button>
+                  </div>
+                )}
 
                 <div
                   onClick={() => navigate("/navigation")}
-                  className="w-full h-44 bg-white/5 border border-white/10 rounded-3xl flex items-center justify-center text-white font-bold text-lg cursor-pointer hover:bg-white/10 shadow-inner"
+                  className="w-full h-44 bg-white/5 border border-white/10 rounded-3xl flex items-center justify-center text-white font-bold text-lg cursor-pointer hover:bg-white/10 shadow-inner transition-all"
                 >
                   📍 Open Live Navigation Map
                 </div>
 
                 <div className="grid grid-cols-2 gap-6">
-
                   <button
                     onClick={() => navigate("/attendance")}
-                    className="h-32 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-3xl text-white font-bold shadow-lg"
+                    className="h-32 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-3xl text-white font-bold shadow-lg active:scale-95 transition-all"
                   >
                     📝 Attendance
                   </button>
-
-                  <button className="h-32 bg-gradient-to-r from-red-600 to-red-500 rounded-3xl text-white font-bold shadow-lg">
+                  <button 
+                    onClick={handleEmergency}
+                    className="h-32 bg-gradient-to-r from-red-600 to-red-500 rounded-3xl text-white font-bold shadow-lg active:scale-95 transition-all"
+                  >
                     🚨 Emergency
                   </button>
-
                 </div>
 
+                <div className="w-full bg-slate-900/60 border border-white/10 p-6 rounded-3xl text-white backdrop-blur-md">
+                  <h3 className="text-cyan-200 font-bold mb-2">Current Expedition</h3>
+                  <p className="text-xs font-black mb-4 tracking-widest uppercase">VAGAMON HILLS</p>
+                  <div className="w-full h-2 bg-white/20 rounded-full">
+                    <div className="h-full bg-emerald-400 w-[75%] rounded-full shadow-[0_0_10px_rgba(52,211,153,0.5)]"></div>
+                  </div>
+                </div>
               </div>
-
             </div>
-
           </div>
 
-          {/* CHAT */}
-
+          {/* CHAT PANEL */}
           <div className="w-full max-w-md mx-auto lg:mx-0">
             <SupportChat onToggle={setChatOpen} />
           </div>
-
         </div>
-
       </div>
 
       <style>{`
-
-        @keyframes flagWave {
-          0%,100% { transform: skewY(0deg); }
-          50% { transform: skewY(8deg) scaleX(1.05); }
-        }
-
-        @keyframes unroll {
-          0% { transform: scaleY(0); opacity:0 }
-          100% { transform: scaleY(1); opacity:1 }
-        }
-
-        .animate-flagWave {
-          animation: flagWave 4s ease-in-out infinite;
-        }
-
-        .animate-unroll {
-          animation: unroll 1.5s cubic-bezier(0.1,0.8,0.2,1) forwards;
-        }
-
+        @keyframes flagWave { 0%,100% { transform: skewY(0deg); } 50% { transform: skewY(8deg) scaleX(1.05); } }
+        @keyframes unroll { 0% { transform: scaleY(0); opacity:0 } 100% { transform: scaleY(1); opacity:1 } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .animate-flagWave { animation: flagWave 4s ease-in-out infinite; }
+        .animate-unroll { animation: unroll 1.5s cubic-bezier(0.1,0.8,0.2,1) forwards; }
+        .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
       `}</style>
-
     </div>
   );
 };
