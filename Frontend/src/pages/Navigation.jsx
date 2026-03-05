@@ -36,15 +36,15 @@ const formatLastSeen = (timestamp) => {
   return "Offline";
 };
 
-// 🔥 FIX: Improved AutoCenter logic
+// 🔥 FIX: Improved AutoCenter logic to snap to actual current location
 function MapAutoCenter({ coords }) {
   const map = useMap();
   const hasCentered = useRef(false);
 
   useEffect(() => {
     if (coords && !hasCentered.current) {
-      // Use flyTo for a smooth initial snap to the student's actual position
-      map.flyTo([coords.lat, coords.lng], 16, { animate: true, duration: 1.5 });
+      // Use setView for immediate snap on load
+      map.setView([coords.lat, coords.lng], 17);
       hasCentered.current = true;
     }
   }, [coords, map]);
@@ -70,6 +70,7 @@ export default function Navigation() {
 
   const showEmergencyPopup = (msg) => setEmergencyPopup({ isOpen: true, message: msg });
 
+  // 1. Emergency Monitor
   useEffect(() => {
     if (!currentUser) return;
     const tenMinsAgo = Date.now() - 10 * 60 * 1000;
@@ -81,7 +82,7 @@ export default function Navigation() {
           if (alertData.uid !== currentUser.uid) {
             let senderName = alertData.name || "Classmate";
             const distance = myLocation ? getDistance(myLocation.lat, myLocation.lng, alertData.lat, alertData.lng) : null;
-            const distStr = distance ? (distance >= 1000 ? (distance / 1000).toFixed(1) + " km" : Math.round(distance) + " m") : "calculating...";
+            const distStr = distance ? (distance >= 1000 ? (distance / 1000).toFixed(1) + " km" : Math.round(distance) + " m") : "Calculating...";
             showEmergencyPopup(`🚨 EMERGENCY: ${senderName} needs help! They are ${distStr} away.`);
           }
         }
@@ -90,6 +91,7 @@ export default function Navigation() {
     return () => unsubscribe();
   }, [currentUser, myLocation]);
 
+  // 2. Fetch Classmates Profile & Live Locations
   useEffect(() => {
     const fetchUsers = async () => {
       const snapshot = await getDocs(collection(db, "users"));
@@ -129,8 +131,10 @@ export default function Navigation() {
 
   const formatDist = (m) => m >= 1000 ? (m / 1000).toFixed(2) + " km" : Math.round(m) + " m";
 
+  // 3. Classmate Markers Logic
   const userMarkers = useMemo(() => {
     return allUsers.map(user => {
+      if (!user.lat || !user.lng) return null;
       const isMe = user.id === currentUser?.uid;
       const info = usersInfo[user.id] || {};
       const isInactive = (Date.now() - (user.lastSeen || 0)) > 180000;
@@ -167,7 +171,7 @@ export default function Navigation() {
   }, [allUsers, myLocation, usersInfo, currentUser]);
 
   return (
-    <div className="relative w-screen h-[100dvh] overflow-hidden bg-black font-sans">
+    <div className="relative w-screen h-[100dvh] overflow-hidden bg-black font-sans text-gray-900">
       <button onClick={() => navigate("/home")} className="absolute top-5 left-5 z-[1001] bg-white p-3 rounded-full shadow-xl active:scale-90 transition">
         <ArrowLeft size={24} className="text-gray-700" />
       </button>
@@ -177,10 +181,9 @@ export default function Navigation() {
         <button onClick={fetchNearbySpots} className={`p-4 rounded-full shadow-2xl transition border-2 ${activeTab === 'spots' ? 'bg-emerald-600 text-white' : 'bg-white text-emerald-600'}`}><Mountain size={24} /></button>
       </div>
 
-      {/* 🔥 Updated initial center to be broad, MapAutoCenter will handle the rest */}
       <MapContainer 
         ref={mapRef} 
-        center={[10, 77]} 
+        center={[10.8505, 76.2711]} // Default Kerala center until coordinates load
         zoom={7} 
         maxZoom={22} 
         zoomControl={false} 
@@ -203,13 +206,25 @@ export default function Navigation() {
           </LayersControl.BaseLayer>
         </LayersControl>
 
+        {/* Individual student markers restored here */}
         {userMarkers}
       </MapContainer>
 
-      <button onClick={() => myLocation && mapRef.current.flyTo([myLocation.lat, myLocation.lng], 18)} className="absolute bottom-8 right-16 z-[1000] bg-white p-4 rounded-full shadow-2xl active:scale-90 transition border-2 border-white">
-        <Target size={28} className="text-indigo-600" />
+      {/* Locate Me Button with improved click handler */}
+      <button 
+        onClick={() => {
+          if (myLocation) {
+            mapRef.current.flyTo([myLocation.lat, myLocation.lng], 18, { animate: true });
+          } else {
+            alert("Waiting for GPS location...");
+          }
+        }} 
+        className="absolute bottom-8 right-16 z-[1000] bg-white p-4 rounded-full shadow-2xl active:scale-90 transition border-2 border-white"
+      >
+        <Target size={28} className={`text-indigo-600 ${!myLocation ? 'animate-pulse opacity-50' : ''}`} />
       </button>
 
+      {/* Floating UI Panels */}
       {activeTab && (
         <div className="absolute bottom-24 left-6 z-[1002] w-80 bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl p-5 border border-gray-200 animate-in slide-in-from-bottom-4 duration-300">
           <div className="flex justify-between items-center mb-4 border-b pb-2">
