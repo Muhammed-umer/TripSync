@@ -12,7 +12,8 @@ import {
   onSnapshot,
   query,
   orderBy,
-  limit
+  limit,
+  where
 } from "firebase/firestore";
 import confetti from "canvas-confetti";
 
@@ -21,15 +22,15 @@ import SupportChat from "./SupportChat";
 import bannerImg from "../assets/banner.png";
 import flagImg from "../assets/flag.png";
 
-// --- NEW TIMER COMPONENT ---
+// --- DYNAMIC TRIP TIMER COMPONENT ---
 const TripTimer = () => {
   const [timeLeft, setTimeLeft] = useState({});
   const [tripState, setTripState] = useState("BEFORE"); // BEFORE, DURING, AFTER
 
   useEffect(() => {
-    const calculateTimeLeft = () => {
+    const calculateTime = () => {
       const now = new Date();
-      // Phase dates
+      // Trip Phase Dates
       const startTime = new Date("2026-03-06T20:00:00");
       const endTime = new Date("2026-03-09T06:00:00");
 
@@ -44,23 +45,21 @@ const TripTimer = () => {
       }
 
       setTripState(state);
-
       const difference = targetDate - now;
-      let timeLeft = {};
 
       if (difference > 0) {
-        timeLeft = {
+        return {
           days: Math.floor(difference / (1000 * 60 * 60 * 24)),
           hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
           minutes: Math.floor((difference / 1000 / 60) % 60),
           seconds: Math.floor((difference / 1000) % 60),
         };
       }
-      return timeLeft;
+      return { days: 0, hours: 0, minutes: 0, seconds: 0 };
     };
 
     const timer = setInterval(() => {
-      setTimeLeft(calculateTimeLeft());
+      setTimeLeft(calculateTime());
     }, 1000);
 
     return () => clearInterval(timer);
@@ -78,7 +77,7 @@ const TripTimer = () => {
   return (
     <div className="w-full bg-slate-900/60 border border-white/10 p-6 rounded-3xl text-white backdrop-blur-md">
       <h3 className={`font-black mb-3 tracking-tighter uppercase ${tripState === "BEFORE" ? "text-yellow-400" : "text-emerald-400"}`}>
-        {tripState === "BEFORE" ? "🚀 GET READY FOR THE TRIP!" : "✨ ENJOY EVERY MOMENT!"}
+        {tripState === "BEFORE" ? "🚀 Be ready for the trip!" : "✨ Enjoy well & create memories!"}
       </h3>
       
       <div className="flex justify-between items-center gap-2 mb-4">
@@ -93,7 +92,7 @@ const TripTimer = () => {
       <p className="text-[10px] font-bold tracking-widest uppercase opacity-80 italic leading-tight text-center">
         {tripState === "BEFORE" 
           ? "Pack your bags and check your gear!" 
-          : "Create memories that last forever. This is our first and last trip together!"}
+          : "This is our first and last trip together. Make it count!"}
       </p>
     </div>
   );
@@ -101,63 +100,63 @@ const TripTimer = () => {
 
 const Home = () => {
   const navigate = useNavigate();
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, role } = useAuth();
 
   const [profileData, setProfileData] = useState({});
   const [showProfile, setShowProfile] = useState(false);
   const [showBanner, setShowBanner] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
 
-  // State for the real-time Emergency Popup
   const [emergencyPopup, setEmergencyPopup] = useState(null);
   const [userCoords, setUserCoords] = useState(null);
+  const lastProcessedAlert = useRef(0);
 
-  // 1. Initialize Location Tracking for Emergency distance calculation
+  // 1. Location Tracking
   useEffect(() => {
     if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition((pos) => {
+      const watchId = navigator.geolocation.watchPosition((pos) => {
         setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
       });
+      return () => navigator.geolocation.clearWatch(watchId);
     }
   }, []);
 
   // 2. Real-time Emergency Listener
   useEffect(() => {
-    const q = query(collection(db, "emergencies"), orderBy("timestamp", "desc"), limit(1));
+    if (!currentUser) return;
+    const oneMinuteAgo = new Date(Date.now() - 60000);
+    const q = query(
+      collection(db, "emergencies"), 
+      where("timestamp", ">=", oneMinuteAgo),
+      orderBy("timestamp", "desc"), 
+      limit(1)
+    );
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (snapshot.empty) return;
-
-      const emergencyDoc = snapshot.docs[0];
-      const data = emergencyDoc.data();
-      
-      // Safety check: only show if created in the last 60 seconds
+      const data = snapshot.docs[0].data();
       const now = Date.now();
-      const alertTime = data.timestamp?.toMillis() || now;
-      const isNew = now - alertTime < 60000;
+      
+      if (now - lastProcessedAlert.current < 5000) return; // 5s throttle
 
-      if (isNew && data.uid !== currentUser?.uid) {
-        let distanceText = "Calculating distance...";
+      if (data.uid !== currentUser?.uid) {
+        lastProcessedAlert.current = now;
+        let distText = "Calculating...";
         if (userCoords && data.lat && data.lng) {
-          const d = calculateDistance(userCoords.lat, userCoords.lng, data.lat, data.lng);
-          distanceText = `${d.toFixed(2)} km away`;
+          const R = 6371; 
+          const dLat = (data.lat - userCoords.lat) * (Math.PI / 180);
+          const dLon = (data.lng - userCoords.lng) * (Math.PI / 180);
+          const a = Math.sin(dLat / 2) ** 2 + Math.cos(userCoords.lat * (Math.PI / 180)) * Math.cos(data.lat * (Math.PI / 180)) * Math.sin(dLon / 2) ** 2;
+          const d = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          distText = `${d.toFixed(2)} km away`;
         }
-        setEmergencyPopup({ ...data, distanceText });
+        setEmergencyPopup({ ...data, distanceText: distText });
       }
     });
-
     return () => unsubscribe();
   }, [currentUser, userCoords]);
 
-  // Haversine Formula for distance between two sets of coordinates
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    const R = 6371; // Radius of earth in km
-    const dLat = (lat2 - lat1) * (Math.PI / 180);
-    const dLon = (lon2 - lon1) * (Math.PI / 180);
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  };
-
+  // 3. Profile Data Fetching
   useEffect(() => {
     const fetchUser = async () => {
       if (!currentUser) return;
@@ -167,62 +166,28 @@ const Home = () => {
     fetchUser();
   }, [currentUser]);
 
-  // Trigger the visual unrolling banner with flower confetti
   const triggerFlowers = () => {
     setShowBanner(true);
-    const duration = 3000;
-    const end = Date.now() + duration;
-
+    const end = Date.now() + 3000;
     (function frame() {
-      confetti({
-        particleCount: 2,
-        angle: 60,
-        spread: 55,
-        origin: { x: 0, y: 0.8 },
-        colors: ["#ff0055", "#ffcc00", "#33ff00"],
-        zIndex: 300
-      });
-      confetti({
-        particleCount: 2,
-        angle: 120,
-        spread: 55,
-        origin: { x: 1, y: 0.8 },
-        colors: ["#ff0055", "#ffcc00", "#33ff00"],
-        zIndex: 300
-      });
-      if (Date.now() < end) { requestAnimationFrame(frame); }
+      confetti({ particleCount: 2, angle: 60, spread: 55, origin: { x: 0, y: 0.8 }, colors: ["#ff0055", "#ffcc00", "#33ff00"], zIndex: 300 });
+      confetti({ particleCount: 2, angle: 120, spread: 55, origin: { x: 1, y: 0.8 }, colors: ["#ff0055", "#ffcc00", "#33ff00"], zIndex: 300 });
+      if (Date.now() < end) requestAnimationFrame(frame);
     })();
   };
 
-  // THE EMERGENCY TRIGGER: Sends location to Firestore
   const handleEmergency = async () => {
-    const sendAlert = async (lat, lng) => {
-      try {
-        await addDoc(collection(db, "emergencies"), {
-          uid: currentUser.uid,
-          name: profileData.username || currentUser.displayName || "A TripMate",
-          lat,
-          lng,
-          timestamp: serverTimestamp()
-        });
-        alert("Alert sent to all users!");
-      } catch (err) {
-        console.error("Firebase Error:", err);
-      }
-    };
-
-    if (userCoords) {
-      await sendAlert(userCoords.lat, userCoords.lng);
-    } else {
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-          setUserCoords(coords);
-          await sendAlert(coords.lat, coords.lng);
-        },
-        () => alert("Please enable location services to use the Emergency button.")
-      );
-    }
+    if (!userCoords) return alert("Enable location for emergency alerts.");
+    try {
+      await addDoc(collection(db, "emergencies"), {
+        uid: currentUser.uid,
+        name: profileData.username || "TripMate",
+        lat: userCoords.lat,
+        lng: userCoords.lng,
+        timestamp: serverTimestamp()
+      });
+      alert("Emergency alert sent!");
+    } catch (err) { console.error(err); }
   };
 
   const handleLogout = async () => {
@@ -232,84 +197,71 @@ const Home = () => {
   };
 
   return (
-    <div
-      className="relative min-h-screen flex justify-center items-start py-6 md:py-10 bg-cover bg-center overflow-x-hidden"
-      style={{
-        backgroundImage: `url(${beachImage})`,
-        backgroundAttachment: "fixed"
-      }}
-    >
+    <div className="relative min-h-screen flex justify-center items-start py-6 md:py-10 bg-cover bg-center overflow-x-hidden" style={{ backgroundImage: `url(${beachImage})`, backgroundAttachment: "fixed" }}>
       <div className="absolute inset-0 bg-black/50 z-0"></div>
 
-      {/* --- EMERGENCY POPUP UI --- */}
+      {/* --- EMERGENCY POPUP --- */}
       {emergencyPopup && (
         <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
-          <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-[0_0_50px_rgba(239,68,68,0.5)] border-t-8 border-red-500 animate-in zoom-in duration-300">
+          <div className="bg-white rounded-[2.5rem] p-8 max-w-sm w-full text-center shadow-2xl border-t-8 border-red-500 animate-in zoom-in duration-300">
             <div className="text-7xl mb-4 animate-bounce">🚨</div>
             <h2 className="text-3xl font-black text-red-600 mb-2">HELP NEEDED!</h2>
             <p className="text-gray-900 font-extrabold text-xl">{emergencyPopup.name}</p>
             <div className="my-6 p-4 bg-red-50 rounded-2xl border-2 border-red-100">
               <p className="text-red-700 font-bold text-lg">📍 {emergencyPopup.distanceText}</p>
             </div>
-            <button 
-              onClick={() => setEmergencyPopup(null)}
-              className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-2xl shadow-lg transition-all active:scale-95"
-            >
-              DISMISS
-            </button>
+            <button onClick={() => setEmergencyPopup(null)} className="w-full bg-red-600 text-white font-black py-4 rounded-2xl transition-all active:scale-95">DISMISS</button>
           </div>
         </div>
       )}
 
-      {/* HEADER AREA: FLAGS AND BANNER BUTTON */}
-      <div
-        className={`absolute top-2 left-0 right-0 w-full z-30 pointer-events-none transition-opacity duration-300 ${
-          chatOpen ? "opacity-0 invisible md:opacity-100 md:visible" : "opacity-100 visible"
-        }`}
-      >
+      {/* --- PROFILE MODAL --- */}
+      {showProfile && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowProfile(false)}></div>
+          <div className="relative w-full max-w-sm bg-zinc-900/95 border border-white/10 rounded-[2.5rem] p-8 text-center animate-in zoom-in-95 duration-200">
+            <button onClick={() => setShowProfile(false)} className="absolute top-6 right-6 text-white/50 hover:text-white">✕</button>
+            <div className="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-cyan-400 overflow-hidden">
+               <img src={profileData.photoURL || `https://ui-avatars.com/api/?name=${currentUser?.email}`} className="w-full h-full object-cover" alt="Profile" />
+            </div>
+            <h3 className="text-white font-bold text-xl mb-1">{profileData.username || currentUser?.displayName}</h3>
+            <p className="text-yellow-200 text-sm mb-8 opacity-80">{currentUser?.email}</p>
+            <div className="space-y-3">
+              {role === "admin" && <button onClick={() => navigate("/admin")} className="w-full bg-blue-600 text-white py-3 rounded-2xl font-semibold">Admin Panel</button>}
+              <button onClick={handleLogout} className="w-full bg-red-600 text-white py-3 rounded-2xl font-semibold">Logout</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- HEADER --- */}
+      <div className={`absolute top-2 left-0 right-0 w-full z-30 pointer-events-none transition-opacity duration-300 ${chatOpen ? "opacity-0 invisible md:opacity-100 md:visible" : "opacity-100 visible"}`}>
         <div className="max-w-6xl mx-auto px-4 flex justify-between items-start gap-4">
           <div className="flex items-start">
             <div className="w-2 h-28 md:h-48 bg-gradient-to-b from-zinc-300 to-zinc-700 rounded-full shadow-lg"></div>
             <div className="relative w-28 h-20 md:w-56 md:h-36 overflow-hidden rounded-sm shadow-2xl border-y border-r border-white/10 animate-flagWave origin-left -ml-1 mt-1">
-              <img src={flagImg} alt="Flag waving" className="w-full h-full object-cover" />
+              <img src={flagImg} alt="Flag" className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-transparent to-black/10"></div>
             </div>
           </div>
-
           <div className="flex-1 flex justify-center items-start mt-14 md:mt-4 pointer-events-auto">
-            <button
-              onClick={triggerFlowers}
-              className="whitespace-nowrap px-4 py-2 md:px-12 md:py-4 bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-[10px] md:text-xl font-black uppercase tracking-widest rounded-full shadow-[0_0_20px_rgba(16,185,129,0.4)] border border-emerald-400/50 hover:scale-110 active:scale-95 transition-all mx-2"
-            >
-              View Banner
-            </button>
+            <button onClick={triggerFlowers} className="whitespace-nowrap px-4 py-2 md:px-12 md:py-4 bg-gradient-to-r from-emerald-500 to-teal-600 text-white text-[10px] md:text-xl font-black uppercase tracking-widest rounded-full shadow-xl hover:scale-110 active:scale-95 transition-all mx-2">View Banner</button>
           </div>
           <div className="w-16 md:hidden"></div>
         </div>
       </div>
 
-      {/* BANNER MODAL */}
+      {/* --- BANNER --- */}
       {showBanner && (
-        <div
-          className="fixed inset-0 z-[200] flex justify-center items-start pt-20 md:pt-12 px-2 md:px-6 backdrop-blur-md animate-fadeIn"
-          onClick={() => setShowBanner(false)}
-        >
-          <button
-            onClick={() => setShowBanner(false)}
-            className="absolute top-4 right-4 z-[210] bg-red-600 text-white px-6 py-2 rounded-full text-sm font-bold shadow-2xl hover:bg-red-700 border border-white/20"
-          >
-            ✕ CLOSE
-          </button>
-          <div
-            className="relative w-full max-w-[95vw] md:max-w-[480px] animate-unroll shadow-[0_0_100px_rgba(0,0,0,0.8)] origin-top rounded-b-xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <img src={bannerImg} alt="Event Banner" className="w-full h-auto max-h-[85vh] object-contain border-x-4 border-b-4 border-white/20" />
+        <div className="fixed inset-0 z-[200] flex justify-center items-start pt-20 backdrop-blur-md animate-fadeIn" onClick={() => setShowBanner(false)}>
+          <button onClick={() => setShowBanner(false)} className="absolute top-4 right-4 z-[210] bg-red-600 text-white px-6 py-2 rounded-full font-bold shadow-2xl">✕ CLOSE</button>
+          <div className="relative w-full max-w-[95vw] md:max-w-[480px] animate-unroll shadow-2xl origin-top rounded-b-xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <img src={bannerImg} alt="Banner" className="w-full h-auto max-h-[85vh] object-contain border-x-4 border-b-4 border-white/20" />
           </div>
         </div>
       )}
 
-      {/* MAIN DASHBOARD PANEL */}
+      {/* --- DASHBOARD --- */}
       <div className="relative w-full max-w-6xl px-4 z-10 mt-28 md:mt-36">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
           <div className="relative w-full max-w-lg rounded-[3rem] overflow-hidden shadow-2xl border border-white/20 mx-auto bg-black/20 backdrop-blur-md">
@@ -319,52 +271,21 @@ const Home = () => {
                   <h1 className="text-2xl font-black text-white tracking-tighter uppercase">TripSync</h1>
                   <p className="text-sm text-yellow-200 font-bold tracking-widest">CSE Warriors '26</p>
                 </div>
-                <div
-                  onClick={() => setShowProfile(!showProfile)}
-                  className="w-12 h-12 rounded-xl border-2 border-cyan-400 overflow-hidden cursor-pointer hover:scale-110 transition shadow-lg"
-                >
-                  <img src={profileData.photoURL || `https://ui-avatars.com/api/?name=${currentUser?.email}`} className="w-full h-full object-cover" alt="User Profile" />
+                <div onClick={() => setShowProfile(true)} className="w-12 h-12 rounded-xl border-2 border-cyan-400 overflow-hidden cursor-pointer hover:scale-110 transition shadow-lg">
+                  <img src={profileData.photoURL || `https://ui-avatars.com/api/?name=${currentUser?.email}`} className="w-full h-full object-cover" alt="User" />
                 </div>
               </div>
-
               <div className="p-8 space-y-8">
-                {showProfile && (
-                  <div className="bg-black/40 p-6 rounded-3xl text-center border border-white/20 animate-in fade-in duration-300">
-                     <h3 className="text-white mb-4 font-bold">{profileData.username || currentUser.displayName}</h3>
-                     <button onClick={handleLogout} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl transition-all">Logout</button>
-                  </div>
-                )}
-
-                <div
-                  onClick={() => navigate("/navigation")}
-                  className="w-full h-44 bg-white/5 border border-white/10 rounded-3xl flex items-center justify-center text-white font-bold text-lg cursor-pointer hover:bg-white/10 shadow-inner transition-all"
-                >
-                  📍 Open Live Navigation Map
-                </div>
-
+                <div onClick={() => navigate("/navigation")} className="w-full h-44 bg-white/5 border border-white/10 rounded-3xl flex items-center justify-center text-white font-bold text-lg cursor-pointer hover:bg-white/10 shadow-inner">📍 Open Live Navigation Map</div>
                 <div className="grid grid-cols-2 gap-6">
-                  <button
-                    onClick={() => navigate("/attendance")}
-                    className="h-32 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-3xl text-white font-bold shadow-lg active:scale-95 transition-all"
-                  >
-                    📝 Attendance
-                  </button>
-                  <button 
-                    onClick={handleEmergency}
-                    className="h-32 bg-gradient-to-r from-red-600 to-red-500 rounded-3xl text-white font-bold shadow-lg active:scale-95 transition-all"
-                  >
-                    🚨 Emergency
-                  </button>
+                  <button onClick={() => navigate("/attendance")} className="h-32 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-3xl text-white font-bold shadow-lg">📝 Attendance</button>
+                  <button onClick={handleEmergency} className="h-32 bg-gradient-to-r from-red-600 to-red-500 rounded-3xl text-white font-bold shadow-lg active:scale-95 transition-all">🚨 Emergency</button>
                 </div>
-
-                {/* 🔥 DYNAMIC TIMER REPLACED STATIC SECTION */}
+                {/* DYNAMIC TRIP TIMER */}
                 <TripTimer />
-
               </div>
             </div>
           </div>
-
-          {/* CHAT PANEL */}
           <div className="w-full max-w-md mx-auto lg:mx-0">
             <SupportChat onToggle={setChatOpen} />
           </div>
@@ -376,7 +297,7 @@ const Home = () => {
         @keyframes unroll { 0% { transform: scaleY(0); opacity:0 } 100% { transform: scaleY(1); opacity:1 } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .animate-flagWave { animation: flagWave 4s ease-in-out infinite; }
-        .animate-unroll { animation: unroll 1.5s cubic-bezier(0.1,0.8,0.2,1) forwards; }
+        .animate-unroll { animation: unroll 1.5s cubic-bezier(0.1, 0.8, 0.2, 1) forwards; }
         .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
       `}</style>
     </div>
